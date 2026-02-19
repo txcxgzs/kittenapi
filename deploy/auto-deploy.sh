@@ -122,6 +122,70 @@ ask_input() {
     done
 }
 
+ask_input_with_default() {
+    local prompt=$1
+    local default=$2
+    local answer
+    
+    echo -e "${YELLOW}${prompt}:${NC} " >&2
+    echo -e "  ${CYAN}(回车使用默认值: ${default})${NC}" >&2
+    read -p "> " answer
+    
+    # 清理输入中的特殊字符
+    answer=$(echo "$answer" | sed "s/[\`\']//g" | sed 's/"//g')
+    
+    if [ -z "$answer" ]; then
+        echo "$default"
+    else
+        echo "$answer"
+    fi
+}
+
+validate_url() {
+    local url=$1
+    if [[ $url =~ ^https?://[a-zA-Z0-9.-]+(:[0-9]+)?(/.*)?$ ]]; then
+        return 0
+    else
+        return 1
+    fi
+}
+
+ask_url() {
+    local prompt=$1
+    local default=$2
+    local answer
+    
+    while true; do
+        if [ -n "$default" ]; then
+            echo -e "${YELLOW}${prompt}:${NC} " >&2
+            echo -e "  ${CYAN}(回车使用默认值: ${default})${NC}" >&2
+        else
+            echo -e "${YELLOW}${prompt}:${NC} " >&2
+        fi
+        read -p "> " answer
+        
+        # 清理输入中的特殊字符
+        answer=$(echo "$answer" | sed "s/[\`\']//g" | sed 's/"//g' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        
+        if [ -z "$answer" ] && [ -n "$default" ]; then
+            echo "$default"
+            return 0
+        fi
+        
+        if [ -z "$answer" ]; then
+            echo -e "${RED}请输入有效的 URL${NC}"
+            continue
+        fi
+        
+        if validate_url "$answer"; then
+            echo "$answer"
+            return 0
+        else
+            echo -e "${RED}URL 格式无效，请输入有效的 URL (例如: http://localhost:9178/api)${NC}"
+        fi
+    done
+}
+
 ask_number() {
     local prompt=$1
     local default_value=$2
@@ -490,10 +554,10 @@ configure_ai_bridge() {
     # Kitten Cloud API 服务地址
     echo ""
     echo -e "${CYAN}Kitten Cloud API 服务地址说明:${NC}"
-    echo -e "  - 本地部署: http://localhost:${PORT}/api"
+    echo -e "  - 本地部署: http://localhost:${PORT}/api ${GREEN}(推荐)${NC}"
     echo -e "  - 域名访问: http://你的域名/api"
     echo ""
-    KITTEN_API_URL=$(ask_input "请输入 Kitten Cloud API 服务地址" true)
+    KITTEN_API_URL=$(ask_url "请输入 Kitten Cloud API 服务地址" "http://localhost:${PORT}/api")
     
     # AI API 配置
     echo ""
@@ -501,9 +565,9 @@ configure_ai_bridge() {
     echo -e "  支持 OpenAI 兼容的 API 接口"
     echo -e "  例如: https://api.openai.com/v1/chat/completions"
     echo ""
-    AI_API_URL=$(ask_input "请输入 AI API 地址" true)
+    AI_API_URL=$(ask_url "请输入 AI API 地址")
     AI_API_KEY=$(ask_input "请输入 AI API Key" true)
-    AI_MODEL=$(ask_input "请输入 AI 模型名称" true)
+    AI_MODEL=$(ask_input_with_default "请输入 AI 模型名称" "gpt-3.5-turbo")
     
     # 云变量配置
     echo ""
@@ -512,9 +576,9 @@ configure_ai_bridge() {
     echo -e "  - 问题前缀: 玩家发送问题时需要加的前缀"
     echo -e "  - 答案前缀: AI 回复时会加的前缀"
     echo ""
-    AI_VAR_NAME=$(ask_input "请输入云变量名" true)
-    AI_QUESTION_PREFIX=$(ask_input "请输入问题前缀" true)
-    AI_ANSWER_PREFIX=$(ask_input "请输入答案前缀" true)
+    AI_VAR_NAME=$(ask_input_with_default "请输入云变量名" "API")
+    AI_QUESTION_PREFIX=$(ask_input_with_default "请输入问题前缀" "QWQ~~~")
+    AI_ANSWER_PREFIX=$(ask_input_with_default "请输入答案前缀" "OKOKOK~~~")
     
     # 创建配置文件
     local config_dir="$PROJECT_DIR/ai-bridge"

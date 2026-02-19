@@ -119,6 +119,19 @@ function initAdminPassword(): void {
   }
 }
 
+function initApiKey(): void {
+  const envApiKey = process.env.API_KEY
+  
+  if (envApiKey && envApiKey.length >= 8) {
+    const currentApiKey = SettingsModel.get('apiKey')
+    
+    if (!currentApiKey) {
+      SettingsModel.set('apiKey', envApiKey)
+      logger.info('API Key 已从环境变量初始化')
+    }
+  }
+}
+
 async function start() {
   validateConfig()
   
@@ -127,6 +140,7 @@ async function start() {
   logger.info('数据库初始化完成')
   
   initAdminPassword()
+  initApiKey()
   
   await ConnectionManager.initialize()
   
