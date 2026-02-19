@@ -1,0 +1,84 @@
+{
+    "name": "kitten-cloud-function",
+    "version": "1.2.1",
+    "description": "用于编程猫源码云功能（云变量、云列表等）的客户端工具",
+    "main": "./dist/cjs/src/wrapper/kitten-cloud-function-package.js",
+    "module": "./dist/esm/src/wrapper/kitten-cloud-function-package.js",
+    "types": "./dist/types/src/wrapper/kitten-cloud-function-package.d.ts",
+    "exports": {
+        "require": "./dist/cjs/src/wrapper/kitten-cloud-function-package.js",
+        "import": "./dist/esm/src/wrapper/kitten-cloud-function-package.js",
+        "types": "./dist/types/src/wrapper/kitten-cloud-function-package.d.ts",
+        "default": "./dist/kitten-cloud-function-package-bundle.js"
+    },
+    "files": [
+        "dist",
+        "LICENSE",
+        "package.json",
+        "README.md"
+    ],
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/s-lightning/Kitten-Cloud-Function.git"
+    },
+    "author": "SLIGHTNING",
+    "license": "AGPL-3.0",
+    "keywords": [
+        "源码云功能",
+        "kitten-cloud",
+        "kitten-cloud-var",
+        "kitten-cloud-variable",
+        "kitten-cloud-list",
+        "cloud-var",
+        "cloud-variable",
+        "cloud-list",
+        "云变量",
+        "云列表",
+        "kitten",
+        "源码编辑器",
+        "codemao",
+        "bcm",
+        "编程猫"
+    ],
+    "bugs": {
+        "url": "https://github.com/s-lightning/Kitten-Cloud-Function/issues"
+    },
+    "homepage": "https://github.com/S-LIGHTNING/Kitten-Cloud-Function",
+    "scripts": {
+        "build:package": "tsc --outDir dist/cjs --target ES2017 --module commonjs --moduleResolution node && tsc --outDir dist/esm && webpack --config webpack.package.js"
+    },
+    "dependencies": {
+        "@slightning/anything-to-string": "^1.0.0",
+        "@ungap/promise-any": "^1.0.0",
+        "appdirsjs": "^1.0.0",
+        "axios": "^1.0.0",
+        "crypto-js": "^4.0.0",
+        "diff": "^5.0.0",
+        "tslib": "^2.0.0",
+        "websocket": "^1.0.0"
+    },
+    "devDependencies": {
+        "@babel/core": "^7.0.0",
+        "@babel/preset-env": "^7.0.0",
+        "@types/crypto-js": "^4.0.0",
+        "@types/diff": "^5.0.0",
+        "@types/websocket": "^1.0.0",
+        "babel-loader": "^9.0.0",
+        "obfuscator-loader": "^1.1.2",
+        "string-replace-loader": "^3.2.0",
+        "terser-webpack-plugin": "^5.0.0",
+        "ts-loader": "^9.0.0",
+        "typescript": "^5.0.0",
+        "webpack": "~5.102.0",
+        "webpack-cli": "^5.0.0",
+        "webpack-merge": "^6.0.0"
+    },
+    "overrides": {
+        "typescript": "$typescript",
+        "javascript-obfuscator": "^4.0.0"
+    },
+    "sideEffects": false,
+    "engines": {
+        "node": ">=14"
+    }
+}

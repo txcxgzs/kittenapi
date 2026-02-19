@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+
+# Lock files
+package-lock.json
+
+# Build output
+dist/
+build/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Database
+*.db
+*.sqlite
+server/data/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+ai-bridge/logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+tmp/
+temp/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+.venv/
+ENV/
+
+# AI Bridge config (sensitive)
+ai-bridge/config.py
+ai-bridge/ecosystem.config.js
+ai-bridge/*.json
+
+# Deploy config
+deploy/deploy.conf

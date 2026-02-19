@@ -1,0 +1,28 @@
+{
+    "compilerOptions": {
+        "outDir": "dist",
+        "target": "ESNext",
+        "importHelpers": true,
+        "declaration": true,
+        "declarationDir": "dist/types",
+        "module": "preserve",
+        "moduleResolution": "bundler",
+        "esModuleInterop": true,
+        "resolveJsonModule": true,
+        "lib": ["ESNext", "DOM"],
+        "skipLibCheck": true,
+        "checkJs": true,
+        "strict": true,
+        "allowUnreachableCode": false,
+        "allowUnusedLabels": false,
+        "noFallthroughCasesInSwitch": false,
+        "noImplicitOverride": true,
+        "noImplicitReturns": true,
+        "noPropertyAccessFromIndexSignature": true,
+        "noUncheckedIndexedAccess": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "experimentalDecorators": true
+    },
+    "include": ["src/**/*"]
+}
