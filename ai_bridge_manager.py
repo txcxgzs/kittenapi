@@ -585,13 +585,35 @@ def restart_instance(work_id: str = None):
         return
     
     actual_name = None
+    bridge_info = None
     for b in bridges:
         if b['work_id'] == work_id or b['name'] == work_id:
             actual_name = b['name']
+            bridge_info = b
             break
     
     if not actual_name:
         actual_name = f"ai-bridge-{work_id}"
+    
+    if bridge_info and bridge_info.get('status') == 'waiting restart':
+        log("WARN", "实例处于等待重启状态，将删除后重新启动...")
+        run_command(f"pm2 delete {actual_name}")
+        time.sleep(1)
+        
+        config_file = get_config_path(work_id)
+        if config_file.exists():
+            script_path = str(SCRIPT_DIR / "kitten_ai_bridge.py").replace('\\', '/')
+            config_path_str = str(config_file).replace('\\', '/')
+            cmd = f'pm2 start {script_path} --name "{actual_name}" --interpreter python3 -- -w {work_id} -c {config_path_str}'
+            returncode, output = run_command(cmd)
+            if returncode == 0:
+                run_command("pm2 save")
+                log("SUCCESS", f"实例 {actual_name} 已重新启动")
+            else:
+                log("ERROR", f"启动失败: {output}")
+        else:
+            log("ERROR", f"配置文件不存在: {config_file}")
+        return
     
     log("STEP", f"正在重启实例 {actual_name}...")
     
