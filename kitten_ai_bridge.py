@@ -139,18 +139,21 @@ def load_config_from_file(config_path: str) -> bool:
         return False
     
     try:
-        # 读取配置文件内容
         with open(config_path, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        # 创建一个局部命名空间来执行配置文件
-        local_vars = {}
-        exec(content, {}, local_vars)
+        safe_globals = {
+            '__builtins__': {
+                'True': True,
+                'False': False,
+                'None': None,
+            }
+        }
+        safe_locals = {}
+        exec(content, safe_globals, safe_locals)
         
-        # 获取 CONFIG 字典
-        if 'CONFIG' in local_vars:
-            file_config = local_vars['CONFIG']
-            # 合并配置，文件配置覆盖默认配置
+        if 'CONFIG' in safe_locals:
+            file_config = safe_locals['CONFIG']
             for key in DEFAULT_CONFIG:
                 if key in file_config and file_config[key]:
                     CONFIG[key] = file_config[key]

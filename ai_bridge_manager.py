@@ -180,7 +180,7 @@ def get_all_ai_bridges() -> list:
                     'online': proc.get('pm2_env', {}).get('status') == 'online'
                 })
         return bridges
-    except:
+    except Exception:
         return []
 
 
@@ -208,13 +208,27 @@ def load_config(work_id: str = 'default') -> dict:
         with open(config_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
-        local_vars = {}
-        exec(content, {}, local_vars)
+        safe_globals = {
+            '__builtins__': {
+                'True': True,
+                'False': False,
+                'None': None,
+            }
+        }
+        safe_locals = {}
+        exec(content, safe_globals, safe_locals)
         
-        return local_vars.get('CONFIG', {})
+        return safe_locals.get('CONFIG', {})
     except Exception as e:
         log("ERROR", f"加载配置失败: {e}")
         return {}
+
+
+def escape_string(s: str) -> str:
+    """转义字符串中的特殊字符"""
+    if not s:
+        return ""
+    return s.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
 def save_config(config: dict, work_id: str = 'default'):
@@ -232,17 +246,17 @@ AI 桥接程序配置文件
 """
 
 CONFIG = {{
-    "api_base_url": "{config.get('api_base_url', '')}",
-    "ai_api_url": "{config.get('ai_api_url', '')}",
-    "ai_api_key": "{config.get('ai_api_key', '')}",
-    "ai_model": "{config.get('ai_model', '')}",
-    "question_prefix": "{config.get('question_prefix', 'QWQ~~~')}",
-    "answer_prefix": "{config.get('answer_prefix', 'OKOKOK~~~')}",
-    "variable_name": "{config.get('variable_name', 'API')}",
-    "system_prompt_file": "{config.get('system_prompt_file', str(prompt_file))}",
+    "api_base_url": "{escape_string(config.get('api_base_url', ''))}",
+    "ai_api_url": "{escape_string(config.get('ai_api_url', ''))}",
+    "ai_api_key": "{escape_string(config.get('ai_api_key', ''))}",
+    "ai_model": "{escape_string(config.get('ai_model', ''))}",
+    "question_prefix": "{escape_string(config.get('question_prefix', 'QWQ~~~'))}",
+    "answer_prefix": "{escape_string(config.get('answer_prefix', 'OKOKOK~~~'))}",
+    "variable_name": "{escape_string(config.get('variable_name', 'API'))}",
+    "system_prompt_file": "{escape_string(str(prompt_file))}",
     "request_timeout": {config.get('request_timeout', 60)},
     "max_retries": {config.get('max_retries', 5)},
-    "log_dir": "{config.get('log_dir', str(LOGS_DIR))}"
+    "log_dir": "{escape_string(str(LOGS_DIR))}"
 }}
 '''
     
@@ -259,7 +273,7 @@ def load_prompt(work_id: str = 'default') -> str:
         try:
             with open(prompt_file, 'r', encoding='utf-8') as f:
                 return f.read()
-        except:
+        except Exception:
             pass
     return DEFAULT_PROMPT
 
@@ -430,7 +444,10 @@ def add_work():
     
     log("STEP", f"正在启动实例 {instance_name}...")
     
-    cmd = f'pm2 start {SCRIPT_DIR}/kitten_ai_bridge.py --name "{instance_name}" --interpreter python3 -- -w {work_id} -c {config_file}'
+    script_path = str(SCRIPT_DIR / "kitten_ai_bridge.py").replace('\\', '/')
+    config_path_str = str(config_file).replace('\\', '/')
+    
+    cmd = f'pm2 start {script_path} --name "{instance_name}" --interpreter python3 -- -w {work_id} -c {config_path_str}'
     
     returncode, output = run_command(cmd)
     
@@ -595,7 +612,7 @@ def edit_config(work_id: str = None):
     if new_val:
         config['ai_api_url'] = new_val
     
-    print(f"\n当前 AI API Key: {YELLOW}{'*' * 10}{config.get('ai_api_key', '')[-4:] if config.get('ai_api_key') else '未配置'}{NC}")
+    print(f"\n当前 AI API Key: {YELLOW}{'*' * 10}{config.get('ai_api_key', '')[-4:] if config.get('ai_api_key') and len(config.get('ai_api_key', '')) >= 4 else '未配置'}{NC}")
     new_val = input("新的 AI API Key (回车保持不变): ").strip()
     if new_val:
         config['ai_api_key'] = new_val
@@ -723,9 +740,9 @@ def show_help():
 
 {CYAN}多作品管理:{NC}
   每个作品独立运行一个 PM2 实例
-  实例命名格式: ai-bridge-{作品ID}
-  配置文件: ai-bridge/config_{作品ID}.py
-  提示词: ai-bridge/system_prompt_{作品ID}.txt
+  实例命名格式: ai-bridge-<作品ID>
+  配置文件: ai-bridge/config_<作品ID>.py
+  提示词: ai-bridge/system_prompt_<作品ID>.txt
 
 {CYAN}配置文件目录:{NC}
   {CONFIG_DIR}
@@ -781,13 +798,17 @@ def show_menu():
 def main():
     print_banner()
     
-    if not PM2_AVAILABLE:
-        log("ERROR", "PM2 未找到，请确保已安装 PM2")
-        log("INFO", "运行: npm install -g pm2")
-        return
-    
     if len(sys.argv) > 1:
         command = sys.argv[1].lower()
+        
+        if command in ['help', '-h', '--help']:
+            show_help()
+            return
+        
+        if not PM2_AVAILABLE:
+            log("ERROR", "PM2 未找到，请确保已安装 PM2")
+            log("INFO", "运行: npm install -g pm2")
+            return
         
         if command == 'status':
             show_all_status()
@@ -807,12 +828,14 @@ def main():
             edit_config(sys.argv[2] if len(sys.argv) > 2 else None)
         elif command == 'prompt':
             edit_prompt(sys.argv[2] if len(sys.argv) > 2 else None)
-        elif command in ['help', '-h', '--help']:
-            show_help()
         else:
             log("ERROR", f"未知命令: {command}")
             show_help()
     else:
+        if not PM2_AVAILABLE:
+            log("ERROR", "PM2 未找到，请确保已安装 PM2")
+            log("INFO", "运行: npm install -g pm2")
+            return
         show_menu()
 
 
