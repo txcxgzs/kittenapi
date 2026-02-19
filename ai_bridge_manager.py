@@ -470,6 +470,8 @@ def add_work():
 
 def remove_work(work_id: str = None):
     """移除作品"""
+    bridges = get_all_ai_bridges()
+    
     if not work_id:
         show_all_status()
         work_id = input("\n请输入要移除的作品ID: ").strip()
@@ -478,17 +480,24 @@ def remove_work(work_id: str = None):
         log("WARN", "未输入作品ID，取消操作")
         return
     
-    instance_name = f"ai-bridge-{work_id}"
+    actual_name = None
+    for b in bridges:
+        if b['work_id'] == work_id or b['name'] == work_id:
+            actual_name = b['name']
+            break
+    
+    if not actual_name:
+        actual_name = f"ai-bridge-{work_id}"
     
     confirm = input(f"确定要移除作品 {work_id} 吗? (y/n): ").strip().lower()
     if confirm != 'y':
         log("INFO", "取消操作")
         return
     
-    log("STEP", f"正在停止并删除实例 {instance_name}...")
+    log("STEP", f"正在停止并删除实例 {actual_name}...")
     
-    run_command(f"pm2 stop {instance_name}")
-    run_command(f"pm2 delete {instance_name}")
+    run_command(f"pm2 stop {actual_name}")
+    run_command(f"pm2 delete {actual_name}")
     run_command("pm2 save")
     
     log("SUCCESS", f"作品 {work_id} 已移除")
@@ -508,21 +517,35 @@ def remove_work(work_id: str = None):
 
 def show_logs(work_id: str = None, lines: int = 50):
     """显示日志"""
+    bridges = get_all_ai_bridges()
+    
     if work_id:
-        instance_name = f"ai-bridge-{work_id}"
+        actual_name = None
+        for b in bridges:
+            if b['work_id'] == work_id or b['name'] == work_id:
+                actual_name = b['name']
+                break
+        if not actual_name:
+            actual_name = f"ai-bridge-{work_id}"
     else:
         show_all_status()
         work_id = input("\n请输入作品ID (回车查看所有日志): ").strip()
         if work_id:
-            instance_name = f"ai-bridge-{work_id}"
+            actual_name = None
+            for b in bridges:
+                if b['work_id'] == work_id or b['name'] == work_id:
+                    actual_name = b['name']
+                    break
+            if not actual_name:
+                actual_name = f"ai-bridge-{work_id}"
         else:
-            instance_name = "ai-bridge-"
+            actual_name = "ai-bridge-"
     
     print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
     print(f"{CYAN}日志 (最近 {lines} 行){NC}")
     print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
     
-    run_command(f"pm2 logs {instance_name} --lines {lines} --nostream", capture=False)
+    run_command(f"pm2 logs {actual_name} --lines {lines} --nostream", capture=False)
 
 
 def clear_logs():
@@ -551,6 +574,8 @@ def clear_logs():
 
 def restart_instance(work_id: str = None):
     """重启实例"""
+    bridges = get_all_ai_bridges()
+    
     if not work_id:
         show_all_status()
         work_id = input("\n请输入要重启的作品ID: ").strip()
@@ -559,14 +584,21 @@ def restart_instance(work_id: str = None):
         log("WARN", "未输入作品ID，取消操作")
         return
     
-    instance_name = f"ai-bridge-{work_id}"
+    actual_name = None
+    for b in bridges:
+        if b['work_id'] == work_id or b['name'] == work_id:
+            actual_name = b['name']
+            break
     
-    log("STEP", f"正在重启实例 {instance_name}...")
+    if not actual_name:
+        actual_name = f"ai-bridge-{work_id}"
     
-    returncode, output = run_command(f"pm2 restart {instance_name}")
+    log("STEP", f"正在重启实例 {actual_name}...")
+    
+    returncode, output = run_command(f"pm2 restart {actual_name}")
     
     if returncode == 0:
-        log("SUCCESS", f"实例 {instance_name} 已重启")
+        log("SUCCESS", f"实例 {actual_name} 已重启")
         time.sleep(2)
         show_instance_status(work_id)
     else:
@@ -575,6 +607,8 @@ def restart_instance(work_id: str = None):
 
 def stop_instance(work_id: str = None):
     """停止实例"""
+    bridges = get_all_ai_bridges()
+    
     if not work_id:
         show_all_status()
         work_id = input("\n请输入要停止的作品ID: ").strip()
@@ -583,14 +617,21 @@ def stop_instance(work_id: str = None):
         log("WARN", "未输入作品ID，取消操作")
         return
     
-    instance_name = f"ai-bridge-{work_id}"
+    actual_name = None
+    for b in bridges:
+        if b['work_id'] == work_id or b['name'] == work_id:
+            actual_name = b['name']
+            break
     
-    log("STEP", f"正在停止实例 {instance_name}...")
+    if not actual_name:
+        actual_name = f"ai-bridge-{work_id}"
     
-    returncode, output = run_command(f"pm2 stop {instance_name}")
+    log("STEP", f"正在停止实例 {actual_name}...")
+    
+    returncode, output = run_command(f"pm2 stop {actual_name}")
     
     if returncode == 0:
-        log("SUCCESS", f"实例 {instance_name} 已停止")
+        log("SUCCESS", f"实例 {actual_name} 已停止")
     else:
         log("ERROR", f"停止失败: {output}")
 
@@ -605,7 +646,16 @@ def edit_config(work_id: str = None):
         log("WARN", "未输入作品ID，取消操作")
         return
     
-    config = load_config(work_id)
+    config_file = get_config_path(work_id)
+    
+    if not config_file.exists():
+        log("WARN", f"作品 {work_id} 的配置文件不存在")
+        create_new = input("是否创建新配置? (y/n): ").strip().lower()
+        if create_new != 'y':
+            return
+        config = {}
+    else:
+        config = load_config(work_id)
     
     print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
     print(f"{CYAN}编辑配置 (作品: {work_id}){NC}")

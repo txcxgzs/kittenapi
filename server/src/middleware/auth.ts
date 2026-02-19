@@ -3,12 +3,13 @@ import { isValidSession, hasPassword } from '../routes/auth'
 import { SettingsModel } from '../models/settings'
 
 const PUBLIC_PATHS = [
-  '/api/connection/connect',
-  '/api/connection/disconnect',
-  '/api/variable/',
-  '/api/list/',
-  '/api/online',
-  '/api/user/'
+  '/health',
+  '/connection/connect',
+  '/connection/disconnect',
+  '/variable/',
+  '/list/',
+  '/online',
+  '/user/'
 ]
 
 function isPublicPath(path: string): boolean {
