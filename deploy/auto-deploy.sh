@@ -110,6 +110,9 @@ ask_input() {
         echo -e "${YELLOW}${prompt}:${NC} " >&2
         read -p "> " answer
         
+        # 清理输入中的特殊字符（反引号、单引号、双引号）
+        answer=$(echo "$answer" | sed "s/[\`\']//g" | sed 's/"//g')
+        
         if [ -z "$answer" ] && [ "$required" = true ]; then
             echo -e "${RED}此项为必填项，请输入${NC}"
         else
