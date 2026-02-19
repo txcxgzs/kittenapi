@@ -100,7 +100,39 @@ curl http://你的服务器/api/variable/变量名
 - 支持自定义 AI 提示词
 - 支持多种 AI 模型
 - PM2 管理，自动重启
+- **支持多作品同时服务**
 - 提供管理工具 `ai_bridge_manager.py`
+
+#### 多作品 AI 桥接
+
+使用管理工具可以同时为多个作品提供 AI 服务：
+
+```bash
+# 进入管理工具
+python3 ai_bridge_manager.py
+
+# 命令行快速操作
+python3 ai_bridge_manager.py status       # 查看所有实例
+python3 ai_bridge_manager.py add          # 添加新作品
+python3 ai_bridge_manager.py remove 123456  # 移除作品
+python3 ai_bridge_manager.py logs 123456  # 查看日志
+python3 ai_bridge_manager.py clear-logs   # 清除所有日志
+```
+
+#### 管理工具功能
+
+| 功能 | 说明 |
+|------|------|
+| 查看所有实例 | 显示所有运行中的 AI 桥接实例 |
+| 添加作品 | 一键添加新作品并启动服务 |
+| 移除作品 | 停止并删除实例 |
+| 重启/停止实例 | 管理单个实例 |
+| 查看日志 | 查看指定实例的运行日志 |
+| 清除日志 | 一键清除所有日志文件 |
+| 编辑配置 | 修改 API 地址、模型、云变量名等 |
+| 编辑提示词 | 自定义 AI 回复风格 |
+
+> 💡 **提示**：每个作品独立配置，可以使用不同的 AI 模型和提示词。
 
 ### 管理后台
 

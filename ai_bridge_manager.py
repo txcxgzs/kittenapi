@@ -2,13 +2,14 @@
 # -*- coding: utf-8 -*-
 """
 Kitten Cloud API - AI 桥接管理工具
-功能：管理 AI 桥接服务、修改配置、查看状态、修改提示词
+功能：管理 AI 桥接服务、多作品管理、修改配置、查看状态、修改提示词
 
 使用方法：
   python3 ai_bridge_manager.py              # 交互菜单
-  python3 ai_bridge_manager.py status       # 查看状态
-  python3 ai_bridge_manager.py restart      # 重启服务
+  python3 ai_bridge_manager.py status       # 查看所有实例状态
+  python3 ai_bridge_manager.py add          # 添加作品
   python3 ai_bridge_manager.py logs         # 查看日志
+  python3 ai_bridge_manager.py clear-logs   # 清除日志
 """
 
 import os
@@ -22,10 +23,6 @@ from pathlib import Path
 
 
 def setup_pm2_path():
-    """
-    设置 PM2 路径
-    尝试多种方式找到 PM2 的位置
-    """
     possible_paths = [
         '/usr/local/nodejs/bin',
         '/usr/local/bin',
@@ -59,14 +56,11 @@ def setup_pm2_path():
 
 PM2_AVAILABLE = setup_pm2_path()
 
-# ==================== 配置路径 ====================
 SCRIPT_DIR = Path(__file__).parent.resolve()
-CONFIG_FILE = SCRIPT_DIR / "ai-bridge" / "config.py"
-PM2_CONFIG_FILE = SCRIPT_DIR / "ai-bridge" / "ecosystem.config.js"
-LOGS_DIR = SCRIPT_DIR / "ai-bridge" / "logs"
-PROMPT_FILE = SCRIPT_DIR / "ai-bridge" / "system_prompt.txt"
+CONFIG_DIR = SCRIPT_DIR / "ai-bridge"
+LOGS_DIR = CONFIG_DIR / "logs"
+PROMPT_FILE = CONFIG_DIR / "system_prompt.txt"
 
-# ==================== 颜色定义 ====================
 RED = '\033[0;31m'
 GREEN = '\033[0;32m'
 YELLOW = '\033[1;33m'
@@ -75,7 +69,6 @@ PURPLE = '\033[0;35m'
 CYAN = '\033[0;36m'
 NC = '\033[0m'
 
-# ==================== 默认提示词 ====================
 DEFAULT_PROMPT = """# AI助手提示词
 
 ## 重要：输出限制
@@ -90,12 +83,12 @@ DEFAULT_PROMPT = """# AI助手提示词
 ## 二、回复原则
 
 ### 1. 回答范围
-✅ 可以回答：
+可以回答：
 - 游戏基础玩法指南
 - 常见问题解答
 - 友好互动
 
-❌ 拒绝回答：
+拒绝回答：
 - 游戏外话题
 - 破解/外挂相关
 - 其他游戏对比
@@ -105,26 +98,22 @@ DEFAULT_PROMPT = """# AI助手提示词
 - 简洁明了
 - 对新手耐心指导
 
----
-
 请作为AI助手，为玩家提供友好、准确的帮助！"""
 
-# ==================== 工具函数 ====================
 
 def print_banner():
-    """打印横幅"""
     print(f"""
 {PURPLE}╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║           AI 桥接管理工具 v1.2.0                             ║
+║           AI 桥接管理工具 v2.0.0                             ║
 ║                                                              ║
-║     管理 AI 桥接服务、修改配置、查看状态、修改提示词         ║
+║     多作品管理 | 配置管理 | 日志管理 | 提示词管理            ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝{NC}
 """)
 
+
 def log(level: str, message: str):
-    """打印日志"""
     level_colors = {
         "INFO": GREEN,
         "WARN": YELLOW,
@@ -135,17 +124,8 @@ def log(level: str, message: str):
     color = level_colors.get(level, "")
     print(f"{color}[{level}]{NC} {message}")
 
+
 def run_command(cmd: str, capture: bool = True) -> tuple:
-    """
-    执行命令
-    
-    Args:
-        cmd: 命令字符串
-        capture: 是否捕获输出
-        
-    Returns:
-        (返回码, 输出)
-    """
     try:
         if capture:
             result = subprocess.run(
@@ -165,18 +145,67 @@ def run_command(cmd: str, capture: bool = True) -> tuple:
     except Exception as e:
         return -1, str(e)
 
-def load_config() -> dict:
+
+def get_all_ai_bridges() -> list:
     """
-    加载配置文件
+    获取所有 AI 桥接实例
     
     Returns:
-        配置字典
+        实例列表
     """
-    if not CONFIG_FILE.exists():
+    if not PM2_AVAILABLE:
+        return []
+    
+    returncode, output = run_command("pm2 jlist")
+    
+    if returncode != 0:
+        return []
+    
+    try:
+        processes = json.loads(output)
+        bridges = []
+        for proc in processes:
+            name = proc.get('name', '')
+            if name.startswith('ai-bridge-') or name == 'kitten-ai-bridge':
+                work_id = name.replace('ai-bridge-', '').replace('kitten-ai-bridge', 'default')
+                bridges.append({
+                    'name': name,
+                    'work_id': work_id if work_id else 'default',
+                    'status': proc.get('pm2_env', {}).get('status'),
+                    'pid': proc.get('pid'),
+                    'uptime': proc.get('pm2_env', {}).get('pm_uptime'),
+                    'restarts': proc.get('pm2_env', {}).get('restart_time'),
+                    'cpu': proc.get('monit', {}).get('cpu'),
+                    'memory': proc.get('monit', {}).get('memory'),
+                    'online': proc.get('pm2_env', {}).get('status') == 'online'
+                })
+        return bridges
+    except:
+        return []
+
+
+def get_config_path(work_id: str) -> Path:
+    """获取指定作品的配置文件路径"""
+    if work_id == 'default':
+        return CONFIG_DIR / "config.py"
+    return CONFIG_DIR / f"config_{work_id}.py"
+
+
+def get_prompt_path(work_id: str) -> Path:
+    """获取指定作品的提示词文件路径"""
+    if work_id == 'default':
+        return CONFIG_DIR / "system_prompt.txt"
+    return CONFIG_DIR / f"system_prompt_{work_id}.txt"
+
+
+def load_config(work_id: str = 'default') -> dict:
+    config_file = get_config_path(work_id)
+    
+    if not config_file.exists():
         return {}
     
     try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+        with open(config_file, 'r', encoding='utf-8') as f:
             content = f.read()
         
         local_vars = {}
@@ -187,19 +216,18 @@ def load_config() -> dict:
         log("ERROR", f"加载配置失败: {e}")
         return {}
 
-def save_config(config: dict):
-    """
-    保存配置文件
+
+def save_config(config: dict, work_id: str = 'default'):
+    config_file = get_config_path(work_id)
+    config_file.parent.mkdir(parents=True, exist_ok=True)
     
-    Args:
-        config: 配置字典
-    """
-    CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    prompt_file = get_prompt_path(work_id)
     
     content = f'''#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 AI 桥接程序配置文件
+作品ID: {work_id}
 更新时间: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}
 """
 
@@ -211,366 +239,412 @@ CONFIG = {{
     "question_prefix": "{config.get('question_prefix', 'QWQ~~~')}",
     "answer_prefix": "{config.get('answer_prefix', 'OKOKOK~~~')}",
     "variable_name": "{config.get('variable_name', 'API')}",
-    "system_prompt_file": "{config.get('system_prompt_file', str(PROMPT_FILE))}",
+    "system_prompt_file": "{config.get('system_prompt_file', str(prompt_file))}",
     "request_timeout": {config.get('request_timeout', 60)},
     "max_retries": {config.get('max_retries', 5)},
     "log_dir": "{config.get('log_dir', str(LOGS_DIR))}"
 }}
 '''
     
-    with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
+    with open(config_file, 'w', encoding='utf-8') as f:
         f.write(content)
     
-    log("SUCCESS", "配置已保存")
+    log("SUCCESS", f"配置已保存 (作品: {work_id})")
 
-def load_prompt() -> str:
-    """
-    加载提示词
+
+def load_prompt(work_id: str = 'default') -> str:
+    prompt_file = get_prompt_path(work_id)
     
-    Returns:
-        提示词内容
-    """
-    if PROMPT_FILE.exists():
+    if prompt_file.exists():
         try:
-            with open(PROMPT_FILE, 'r', encoding='utf-8') as f:
+            with open(prompt_file, 'r', encoding='utf-8') as f:
                 return f.read()
         except:
             pass
     return DEFAULT_PROMPT
 
-def save_prompt(prompt: str):
-    """
-    保存提示词
+
+def save_prompt(prompt: str, work_id: str = 'default'):
+    prompt_file = get_prompt_path(work_id)
+    prompt_file.parent.mkdir(parents=True, exist_ok=True)
     
-    Args:
-        prompt: 提示词内容
-    """
-    PROMPT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    
-    with open(PROMPT_FILE, 'w', encoding='utf-8') as f:
+    with open(prompt_file, 'w', encoding='utf-8') as f:
         f.write(prompt)
     
-    # 更新配置文件中的提示词文件路径
-    config = load_config()
-    config['system_prompt_file'] = str(PROMPT_FILE)
-    save_config(config)
+    config = load_config(work_id)
+    config['system_prompt_file'] = str(prompt_file)
+    save_config(config, work_id)
     
-    log("SUCCESS", "提示词已保存")
+    log("SUCCESS", f"提示词已保存 (作品: {work_id})")
 
-def get_pm2_status() -> dict:
-    """
-    获取 PM2 服务状态
-    
-    Returns:
-        状态字典
-    """
-    if not PM2_AVAILABLE:
-        pm2_path = shutil.which('pm2')
-        if not pm2_path:
-            return {"error": "PM2 未找到，请确保已安装 PM2 并在 PATH 中。尝试运行: npm install -g pm2"}
-    
-    returncode, output = run_command("pm2 jlist")
-    
-    if returncode != 0:
-        error_msg = output[:200] if output else '未知错误'
-        if "command not found" in error_msg or "not found" in error_msg.lower():
-            return {"error": "PM2 命令未找到，请检查 PATH 环境变量"}
-        return {"error": f"PM2 命令执行失败: {error_msg}"}
-    
-    try:
-        processes = json.loads(output)
-        for proc in processes:
-            if proc.get('name') == 'kitten-ai-bridge':
-                return {
-                    "name": proc.get('name'),
-                    "status": proc.get('pm2_env', {}).get('status'),
-                    "pid": proc.get('pid'),
-                    "uptime": proc.get('pm2_env', {}).get('pm_uptime'),
-                    "restarts": proc.get('pm2_env', {}).get('restart_time'),
-                    "cpu": proc.get('monit', {}).get('cpu'),
-                    "memory": proc.get('monit', {}).get('memory'),
-                    "online": proc.get('pm2_env', {}).get('status') == 'online'
-                }
-        return {"status": "not_found", "online": False}
-    except json.JSONDecodeError:
-        return {"error": "PM2 输出解析失败"}
-    except Exception as e:
-        return {"error": str(e)}
 
-def get_work_id() -> str:
-    """从 PM2 配置获取作品ID"""
-    if PM2_CONFIG_FILE.exists():
-        with open(PM2_CONFIG_FILE, 'r', encoding='utf-8') as f:
-            content = f.read()
-            if '-w ' in content:
-                start = content.find('-w ') + 3
-                end = content.find(' ', start)
-                if end == -1:
-                    end = content.find("'", start)
-                if end == -1:
-                    end = content.find('"', start)
-                if end > start:
-                    return content[start:end].strip()
-    return "未知"
-
-def update_pm2_config(work_id: str):
-    """
-    更新 PM2 配置
-    
-    Args:
-        work_id: 作品ID
-    """
-    PM2_CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    
-    content = f'''module.exports = {{
-  apps: [{{
-    name: 'kitten-ai-bridge',
-    script: '{SCRIPT_DIR}/kitten_ai_bridge.py',
-    interpreter: 'python3',
-    args: '-w {work_id} -c {CONFIG_FILE}',
-    cwd: '{SCRIPT_DIR}',
-    autorestart: true,
-    restart_delay: 3000,
-    max_restarts: 1000,
-    watch: false,
-    cron_restart: '*/5 * * * *',
-    env: {{
-      NODE_ENV: 'production'
-    }},
-    error_file: '{LOGS_DIR}/error.log',
-    out_file: '{LOGS_DIR}/out.log'
-  }}]
-}}
-'''
-    
-    with open(PM2_CONFIG_FILE, 'w', encoding='utf-8') as f:
-        f.write(content)
-
-# ==================== 功能函数 ====================
-
-def show_status():
-    """显示服务状态"""
+def show_all_status():
+    """显示所有实例状态"""
     print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
-    print(f"{CYAN}AI 桥接服务状态{NC}")
+    print(f"{CYAN}所有 AI 桥接实例{NC}")
     print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
     
-    # PM2 状态
-    pm2_status = get_pm2_status()
+    bridges = get_all_ai_bridges()
     
-    if pm2_status.get('error'):
-        log("ERROR", pm2_status['error'])
-        log("INFO", "请确保 PM2 已安装并在 PATH 中")
-        pm2_path = shutil.which('pm2')
-        if pm2_path:
-            log("INFO", f"PM2 路径: {pm2_path}")
-        else:
-            log("INFO", f"当前 PATH: {os.environ.get('PATH', '未设置')}")
-            print(f"\n尝试执行: export PATH=/usr/local/nodejs/bin:$PATH")
+    if not bridges:
+        log("WARN", "暂无运行中的 AI 桥接实例")
+        log("INFO", "使用 '添加作品' 功能创建新实例")
         return
     
-    if pm2_status.get('status') == 'not_found':
-        log("WARN", "AI 桥接服务未运行")
+    print(f"{'实例名称':<25} {'作品ID':<12} {'状态':<10} {'PID':<8} {'CPU':<8} {'内存':<10}")
+    print("-" * 80)
+    
+    for bridge in bridges:
+        status_color = GREEN if bridge['online'] else RED
+        status = bridge.get('status', '未知')
+        pid = bridge.get('pid', '-') or '-'
+        cpu = f"{bridge.get('cpu', 0)}%" if bridge.get('cpu') else "-"
+        memory = bridge.get('memory', 0)
+        mem_str = f"{memory / 1024 / 1024:.1f}MB" if memory else "-"
+        
+        print(f"{bridge['name']:<25} {bridge['work_id']:<12} {status_color}{status:<10}{NC} {str(pid):<8} {cpu:<8} {mem_str:<10}")
+    
+    print()
+
+
+def show_instance_status(work_id: str):
+    """显示指定实例详细状态"""
+    bridges = get_all_ai_bridges()
+    bridge = None
+    
+    for b in bridges:
+        if b['work_id'] == work_id or b['name'] == work_id:
+            bridge = b
+            break
+    
+    if not bridge:
+        log("ERROR", f"未找到实例: {work_id}")
         return
     
-    status_color = GREEN if pm2_status.get('online') else RED
-    print(f"  服务状态: {status_color}{pm2_status.get('status', '未知')}{NC}")
-    print(f"  进程 PID: {YELLOW}{pm2_status.get('pid', '无')}{NC}")
+    print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
+    print(f"{CYAN}实例详情: {bridge['name']}{NC}")
+    print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
     
-    # 计算运行时间
-    uptime = pm2_status.get('uptime')
+    status_color = GREEN if bridge['online'] else RED
+    print(f"  实例名称:   {YELLOW}{bridge['name']}{NC}")
+    print(f"  作品ID:     {YELLOW}{bridge['work_id']}{NC}")
+    print(f"  服务状态:   {status_color}{bridge.get('status', '未知')}{NC}")
+    print(f"  进程 PID:   {YELLOW}{bridge.get('pid', '无') or '无'}{NC}")
+    
+    uptime = bridge.get('uptime')
     if uptime:
         uptime_seconds = (time.time() * 1000 - uptime) / 1000
         hours = int(uptime_seconds // 3600)
         minutes = int((uptime_seconds % 3600) // 60)
-        print(f"  运行时间: {YELLOW}{hours}小时{minutes}分钟{NC}")
+        print(f"  运行时间:   {YELLOW}{hours}小时{minutes}分钟{NC}")
     
-    print(f"  重启次数: {YELLOW}{pm2_status.get('restarts', 0)}{NC}")
-    print(f"  CPU 使用: {YELLOW}{pm2_status.get('cpu', 0)}%{NC}")
+    print(f"  重启次数:   {YELLOW}{bridge.get('restarts', 0)}{NC}")
+    print(f"  CPU 使用:   {YELLOW}{bridge.get('cpu', 0)}%{NC}")
     
-    memory = pm2_status.get('memory', 0)
+    memory = bridge.get('memory', 0)
     if memory:
-        print(f"  内存使用: {YELLOW}{memory / 1024 / 1024:.1f} MB{NC}")
+        print(f"  内存使用:   {YELLOW}{memory / 1024 / 1024:.1f} MB{NC}")
     
-    # 配置信息
-    config = load_config()
-    work_id = get_work_id()
+    config = load_config(bridge['work_id'])
     
-    print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
-    print(f"{CYAN}当前配置{NC}")
-    print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
-    
-    print(f"  作品ID:     {YELLOW}{work_id}{NC}")
+    print(f"\n{CYAN}配置信息:{NC}")
     print(f"  API地址:    {YELLOW}{config.get('api_base_url', '未配置')}{NC}")
     print(f"  AI API:     {YELLOW}{config.get('ai_api_url', '未配置')}{NC}")
     print(f"  AI模型:     {YELLOW}{config.get('ai_model', '未配置')}{NC}")
     print(f"  云变量名:   {YELLOW}{config.get('variable_name', '未配置')}{NC}")
-    print(f"  问题前缀:   {YELLOW}{config.get('question_prefix', '未配置')}{NC}")
-    print(f"  答案前缀:   {YELLOW}{config.get('answer_prefix', '未配置')}{NC}")
-    print(f"  提示词文件: {YELLOW}{config.get('system_prompt_file', PROMPT_FILE)}{NC}")
     print()
 
-def show_logs(lines: int = 50):
-    """
-    显示日志
-    
-    Args:
-        lines: 显示行数
-    """
+
+def add_work():
+    """添加新作品"""
     print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
-    print(f"{CYAN}AI 桥接日志 (最近 {lines} 行){NC}")
+    print(f"{CYAN}添加新作品{NC}")
     print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
     
-    # 使用 PM2 查看日志
-    run_command(f"pm2 logs kitten-ai-bridge --lines {lines} --nostream", capture=False)
-
-def restart_service():
-    """重启服务"""
-    log("STEP", "正在重启 AI 桥接服务...")
+    work_id = input("请输入作品ID: ").strip()
     
-    returncode, output = run_command("pm2 restart kitten-ai-bridge")
-    
-    if returncode == 0:
-        log("SUCCESS", "AI 桥接服务已重启")
-        time.sleep(2)
-        show_status()
-    else:
-        log("ERROR", f"重启失败: {output}")
-
-def start_service():
-    """启动服务"""
-    log("STEP", "正在启动 AI 桥接服务...")
-    
-    # 先检查是否已运行
-    pm2_status = get_pm2_status()
-    if pm2_status.get('online'):
-        log("WARN", "服务已在运行中")
+    if not work_id:
+        log("WARN", "未输入作品ID，取消操作")
         return
     
-    # 使用 PM2 配置启动
-    returncode, output = run_command(f"pm2 start {PM2_CONFIG_FILE}")
-    
-    if returncode == 0:
-        log("SUCCESS", "AI 桥接服务已启动")
-        run_command("pm2 save")
-        time.sleep(2)
-        show_status()
-    else:
-        log("ERROR", f"启动失败: {output}")
-
-def stop_service():
-    """停止服务"""
-    log("STEP", "正在停止 AI 桥接服务...")
-    
-    returncode, output = run_command("pm2 stop kitten-ai-bridge")
-    
-    if returncode == 0:
-        log("SUCCESS", "AI 桥接服务已停止")
-    else:
-        log("ERROR", f"停止失败: {output}")
-
-def edit_work_id():
-    """修改作品ID"""
-    config = load_config()
-    current_id = get_work_id()
-    
-    print(f"\n{CYAN}当前作品ID: {YELLOW}{current_id}{NC}\n")
-    
-    new_id = input("请输入新的作品ID: ").strip()
-    
-    if not new_id:
-        log("WARN", "未输入作品ID，取消修改")
-        return
-    
-    if not new_id.isdigit():
+    if not work_id.isdigit():
         log("ERROR", "作品ID必须是数字")
         return
     
-    # 更新 PM2 配置
-    update_pm2_config(new_id)
+    instance_name = f"ai-bridge-{work_id}"
     
-    log("SUCCESS", f"作品ID已更新为: {new_id}")
+    bridges = get_all_ai_bridges()
+    for b in bridges:
+        if b['work_id'] == work_id:
+            log("WARN", f"作品 {work_id} 已存在")
+            return
     
-    # 询问是否重启
-    if input("\n是否立即重启服务? (y/n): ").strip().lower() == 'y':
-        restart_service()
+    config_file = get_config_path(work_id)
+    
+    if not config_file.exists():
+        print(f"\n{CYAN}配置作品 {work_id} 的参数:{NC}\n")
+        
+        config = {}
+        
+        api_base_url = input("API服务地址 (默认 http://localhost:9178): ").strip()
+        config['api_base_url'] = api_base_url if api_base_url else "http://localhost:9178"
+        
+        ai_api_url = input("AI API 地址: ").strip()
+        if not ai_api_url:
+            log("ERROR", "AI API 地址不能为空")
+            return
+        config['ai_api_url'] = ai_api_url
+        
+        ai_api_key = input("AI API Key: ").strip()
+        if not ai_api_key:
+            log("ERROR", "AI API Key 不能为空")
+            return
+        config['ai_api_key'] = ai_api_key
+        
+        ai_model = input("AI 模型名称 (默认 gpt-3.5-turbo): ").strip()
+        config['ai_model'] = ai_model if ai_model else "gpt-3.5-turbo"
+        
+        variable_name = input("云变量名 (默认 API): ").strip()
+        config['variable_name'] = variable_name if variable_name else "API"
+        
+        question_prefix = input("问题前缀 (默认 QWQ~~~): ").strip()
+        config['question_prefix'] = question_prefix if question_prefix else "QWQ~~~"
+        
+        answer_prefix = input("答案前缀 (默认 OKOKOK~~~): ").strip()
+        config['answer_prefix'] = answer_prefix if answer_prefix else "OKOKOK~~~"
+        
+        config['request_timeout'] = 60
+        config['max_retries'] = 5
+        config['log_dir'] = str(LOGS_DIR)
+        
+        prompt_file = get_prompt_path(work_id)
+        config['system_prompt_file'] = str(prompt_file)
+        
+        save_config(config, work_id)
+        
+        use_default_prompt = input("\n使用默认提示词? (y/n, 默认y): ").strip().lower()
+        if use_default_prompt != 'n':
+            save_prompt(DEFAULT_PROMPT, work_id)
+        else:
+            print(f"\n请编辑提示词文件: {prompt_file}")
+    
+    log("STEP", f"正在启动实例 {instance_name}...")
+    
+    cmd = f'pm2 start {SCRIPT_DIR}/kitten_ai_bridge.py --name "{instance_name}" --interpreter python3 -- -w {work_id} -c {config_file}'
+    
+    returncode, output = run_command(cmd)
+    
+    if returncode == 0:
+        run_command("pm2 save")
+        log("SUCCESS", f"作品 {work_id} 已添加并启动")
+        show_all_status()
+    else:
+        log("ERROR", f"启动失败: {output}")
 
-def edit_ai_config():
-    """修改 AI 配置"""
-    config = load_config()
+
+def remove_work(work_id: str = None):
+    """移除作品"""
+    if not work_id:
+        show_all_status()
+        work_id = input("\n请输入要移除的作品ID: ").strip()
+    
+    if not work_id:
+        log("WARN", "未输入作品ID，取消操作")
+        return
+    
+    instance_name = f"ai-bridge-{work_id}"
+    
+    confirm = input(f"确定要移除作品 {work_id} 吗? (y/n): ").strip().lower()
+    if confirm != 'y':
+        log("INFO", "取消操作")
+        return
+    
+    log("STEP", f"正在停止并删除实例 {instance_name}...")
+    
+    run_command(f"pm2 stop {instance_name}")
+    run_command(f"pm2 delete {instance_name}")
+    run_command("pm2 save")
+    
+    log("SUCCESS", f"作品 {work_id} 已移除")
+    
+    delete_config = input("是否同时删除配置文件? (y/n): ").strip().lower()
+    if delete_config == 'y':
+        config_file = get_config_path(work_id)
+        prompt_file = get_prompt_path(work_id)
+        
+        if config_file.exists():
+            config_file.unlink()
+        if prompt_file.exists():
+            prompt_file.unlink()
+        
+        log("SUCCESS", "配置文件已删除")
+
+
+def show_logs(work_id: str = None, lines: int = 50):
+    """显示日志"""
+    if work_id:
+        instance_name = f"ai-bridge-{work_id}"
+    else:
+        show_all_status()
+        work_id = input("\n请输入作品ID (回车查看所有日志): ").strip()
+        if work_id:
+            instance_name = f"ai-bridge-{work_id}"
+        else:
+            instance_name = "ai-bridge-"
     
     print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
-    print(f"{CYAN}修改 AI 配置{NC}")
+    print(f"{CYAN}日志 (最近 {lines} 行){NC}")
     print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
     
-    # AI API 地址
-    print(f"当前 AI API 地址: {YELLOW}{config.get('ai_api_url', '未配置')}{NC}")
-    new_ai_url = input("请输入新的 AI API 地址 (回车保持不变): ").strip()
-    if new_ai_url:
-        config['ai_api_url'] = new_ai_url
+    run_command(f"pm2 logs {instance_name} --lines {lines} --nostream", capture=False)
+
+
+def clear_logs():
+    """清除所有日志"""
+    print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
+    print(f"{CYAN}清除日志{NC}")
+    print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
     
-    # AI API Key
+    confirm = input("确定要清除所有 AI 桥接日志吗? (y/n): ").strip().lower()
+    if confirm != 'y':
+        log("INFO", "取消操作")
+        return
+    
+    log("STEP", "正在清除日志...")
+    
+    run_command("pm2 flush")
+    
+    if LOGS_DIR.exists():
+        for log_file in LOGS_DIR.glob("*.log"):
+            log_file.unlink()
+        for log_file in LOGS_DIR.glob("*.json"):
+            log_file.unlink()
+    
+    log("SUCCESS", "日志已清除")
+
+
+def restart_instance(work_id: str = None):
+    """重启实例"""
+    if not work_id:
+        show_all_status()
+        work_id = input("\n请输入要重启的作品ID: ").strip()
+    
+    if not work_id:
+        log("WARN", "未输入作品ID，取消操作")
+        return
+    
+    instance_name = f"ai-bridge-{work_id}"
+    
+    log("STEP", f"正在重启实例 {instance_name}...")
+    
+    returncode, output = run_command(f"pm2 restart {instance_name}")
+    
+    if returncode == 0:
+        log("SUCCESS", f"实例 {instance_name} 已重启")
+        time.sleep(2)
+        show_instance_status(work_id)
+    else:
+        log("ERROR", f"重启失败: {output}")
+
+
+def stop_instance(work_id: str = None):
+    """停止实例"""
+    if not work_id:
+        show_all_status()
+        work_id = input("\n请输入要停止的作品ID: ").strip()
+    
+    if not work_id:
+        log("WARN", "未输入作品ID，取消操作")
+        return
+    
+    instance_name = f"ai-bridge-{work_id}"
+    
+    log("STEP", f"正在停止实例 {instance_name}...")
+    
+    returncode, output = run_command(f"pm2 stop {instance_name}")
+    
+    if returncode == 0:
+        log("SUCCESS", f"实例 {instance_name} 已停止")
+    else:
+        log("ERROR", f"停止失败: {output}")
+
+
+def edit_config(work_id: str = None):
+    """编辑配置"""
+    if not work_id:
+        show_all_status()
+        work_id = input("\n请输入作品ID: ").strip()
+    
+    if not work_id:
+        log("WARN", "未输入作品ID，取消操作")
+        return
+    
+    config = load_config(work_id)
+    
+    print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
+    print(f"{CYAN}编辑配置 (作品: {work_id}){NC}")
+    print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
+    
+    print(f"当前 API 服务地址: {YELLOW}{config.get('api_base_url', '未配置')}{NC}")
+    new_val = input("新的 API 服务地址 (回车保持不变): ").strip()
+    if new_val:
+        config['api_base_url'] = new_val
+    
+    print(f"\n当前 AI API 地址: {YELLOW}{config.get('ai_api_url', '未配置')}{NC}")
+    new_val = input("新的 AI API 地址 (回车保持不变): ").strip()
+    if new_val:
+        config['ai_api_url'] = new_val
+    
     print(f"\n当前 AI API Key: {YELLOW}{'*' * 10}{config.get('ai_api_key', '')[-4:] if config.get('ai_api_key') else '未配置'}{NC}")
-    new_ai_key = input("请输入新的 AI API Key (回车保持不变): ").strip()
-    if new_ai_key:
-        config['ai_api_key'] = new_ai_key
+    new_val = input("新的 AI API Key (回车保持不变): ").strip()
+    if new_val:
+        config['ai_api_key'] = new_val
     
-    # AI 模型
     print(f"\n当前 AI 模型: {YELLOW}{config.get('ai_model', '未配置')}{NC}")
-    new_model = input("请输入新的 AI 模型名称 (回车保持不变): ").strip()
-    if new_model:
-        config['ai_model'] = new_model
+    new_val = input("新的 AI 模型 (回车保持不变): ").strip()
+    if new_val:
+        config['ai_model'] = new_val
     
-    # 保存配置
-    save_config(config)
+    print(f"\n当前云变量名: {YELLOW}{config.get('variable_name', '未配置')}{NC}")
+    new_val = input("新的云变量名 (回车保持不变): ").strip()
+    if new_val:
+        config['variable_name'] = new_val
     
-    # 询问是否重启
-    if input("\n是否立即重启服务? (y/n): ").strip().lower() == 'y':
-        restart_service()
-
-def edit_variable_config():
-    """修改云变量配置"""
-    config = load_config()
-    
-    print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
-    print(f"{CYAN}修改云变量配置{NC}")
-    print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
-    
-    # 云变量名
-    print(f"当前云变量名: {YELLOW}{config.get('variable_name', '未配置')}{NC}")
-    new_var_name = input("请输入新的云变量名 (回车保持不变): ").strip()
-    if new_var_name:
-        config['variable_name'] = new_var_name
-    
-    # 问题前缀
     print(f"\n当前问题前缀: {YELLOW}{config.get('question_prefix', '未配置')}{NC}")
-    new_q_prefix = input("请输入新的问题前缀 (回车保持不变): ").strip()
-    if new_q_prefix:
-        config['question_prefix'] = new_q_prefix
+    new_val = input("新的问题前缀 (回车保持不变): ").strip()
+    if new_val:
+        config['question_prefix'] = new_val
     
-    # 答案前缀
     print(f"\n当前答案前缀: {YELLOW}{config.get('answer_prefix', '未配置')}{NC}")
-    new_a_prefix = input("请输入新的答案前缀 (回车保持不变): ").strip()
-    if new_a_prefix:
-        config['answer_prefix'] = new_a_prefix
+    new_val = input("新的答案前缀 (回车保持不变): ").strip()
+    if new_val:
+        config['answer_prefix'] = new_val
     
-    # 保存配置
-    save_config(config)
+    save_config(config, work_id)
     
-    # 询问是否重启
-    if input("\n是否立即重启服务? (y/n): ").strip().lower() == 'y':
-        restart_service()
+    restart = input("\n是否立即重启实例? (y/n): ").strip().lower()
+    if restart == 'y':
+        restart_instance(work_id)
 
-def edit_prompt():
-    """修改 AI 提示词"""
-    current_prompt = load_prompt()
+
+def edit_prompt(work_id: str = None):
+    """编辑提示词"""
+    if not work_id:
+        show_all_status()
+        work_id = input("\n请输入作品ID: ").strip()
+    
+    if not work_id:
+        log("WARN", "未输入作品ID，取消操作")
+        return
+    
+    current_prompt = load_prompt(work_id)
     
     print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
-    print(f"{CYAN}修改 AI 提示词{NC}")
+    print(f"{CYAN}编辑提示词 (作品: {work_id}){NC}")
     print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
     
     print(f"当前提示词 ({len(current_prompt)} 字符):")
     print(f"{YELLOW}{'-' * 50}{NC}")
-    # 显示前 500 字符
     if len(current_prompt) > 500:
         print(current_prompt[:500] + "\n... (已截断)")
     else:
@@ -586,7 +660,6 @@ def edit_prompt():
     choice = input("\n请选择: ").strip()
     
     if choice == '1':
-        # 查看完整提示词
         print(f"\n{CYAN}完整提示词:{NC}")
         print(f"{YELLOW}{'-' * 50}{NC}")
         print(current_prompt)
@@ -594,104 +667,70 @@ def edit_prompt():
         input("\n按回车继续...")
     
     elif choice == '2':
-        # 使用 nano 编辑
         print(f"\n{CYAN}正在打开编辑器...{NC}")
         print(f"提示: 编辑完成后按 Ctrl+X 保存退出\n")
         time.sleep(1)
         
-        # 保存当前提示词到临时文件
-        temp_file = SCRIPT_DIR / "ai-bridge" / "temp_prompt.txt"
-        temp_file.parent.mkdir(parents=True, exist_ok=True)
+        prompt_file = get_prompt_path(work_id)
+        prompt_file.parent.mkdir(parents=True, exist_ok=True)
+        
+        temp_file = CONFIG_DIR / f"temp_prompt_{work_id}.txt"
         with open(temp_file, 'w', encoding='utf-8') as f:
             f.write(current_prompt)
         
-        # 使用 nano 编辑
         os.system(f"nano {temp_file}")
         
-        # 读取编辑后的内容
         if temp_file.exists():
             with open(temp_file, 'r', encoding='utf-8') as f:
                 new_prompt = f.read()
             
             if new_prompt.strip() and new_prompt != current_prompt:
-                save_prompt(new_prompt)
-                log("SUCCESS", "提示词已更新")
+                save_prompt(new_prompt, work_id)
                 
-                if input("\n是否立即重启服务? (y/n): ").strip().lower() == 'y':
-                    restart_service()
+                restart = input("\n是否立即重启实例? (y/n): ").strip().lower()
+                if restart == 'y':
+                    restart_instance(work_id)
             else:
                 log("INFO", "提示词未更改")
             
-            # 删除临时文件
             temp_file.unlink()
     
     elif choice == '3':
-        # 重置为默认
-        if input("确定要重置为默认提示词吗? (y/n): ").strip().lower() == 'y':
-            save_prompt(DEFAULT_PROMPT)
+        confirm = input("确定要重置为默认提示词吗? (y/n): ").strip().lower()
+        if confirm == 'y':
+            save_prompt(DEFAULT_PROMPT, work_id)
             log("SUCCESS", "已重置为默认提示词")
             
-            if input("\n是否立即重启服务? (y/n): ").strip().lower() == 'y':
-                restart_service()
+            restart = input("\n是否立即重启实例? (y/n): ").strip().lower()
+            if restart == 'y':
+                restart_instance(work_id)
 
-def show_stats():
-    """显示统计数据"""
-    print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
-    print(f"{CYAN}AI 桥接统计数据{NC}")
-    print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
-    
-    # 查找最新的统计文件
-    stats_files = list(LOGS_DIR.glob("stats_*.json")) if LOGS_DIR.exists() else []
-    
-    if not stats_files:
-        log("WARN", "暂无统计数据")
-        return
-    
-    latest_stats = max(stats_files, key=lambda f: f.stat().st_mtime)
-    
-    try:
-        with open(latest_stats, 'r', encoding='utf-8') as f:
-            stats = json.load(f)
-        
-        print(f"  统计日期:   {YELLOW}{stats.get('date', '未知')}{NC}")
-        print(f"  运行时长:   {YELLOW}{stats.get('uptime_seconds', 0) // 3600}小时{(stats.get('uptime_seconds', 0) % 3600) // 60}分钟{NC}")
-        print(f"  轮询次数:   {YELLOW}{stats.get('total_polls', 0)}{NC}")
-        print(f"  收到问题:   {YELLOW}{stats.get('total_questions', 0)}{NC}")
-        print(f"  成功答复:   {GREEN}{stats.get('successful_answers', 0)}{NC}")
-        print(f"  失败答复:   {RED}{stats.get('failed_answers', 0)}{NC}")
-        
-        total = stats.get('total_questions', 0)
-        success = stats.get('successful_answers', 0)
-        rate = (success / total * 100) if total > 0 else 0
-        print(f"  成功率:     {YELLOW}{rate:.1f}%{NC}")
-        print(f"  错误次数:   {RED}{stats.get('total_errors', 0)}{NC}")
-        print()
-    except Exception as e:
-        log("ERROR", f"读取统计数据失败: {e}")
 
 def show_help():
     """显示帮助"""
     print(f"""
 {CYAN}使用方法:{NC}
   python3 ai_bridge_manager.py              # 交互菜单
-  python3 ai_bridge_manager.py status       # 查看状态
-  python3 ai_bridge_manager.py restart      # 重启服务
-  python3 ai_bridge_manager.py start        # 启动服务
-  python3 ai_bridge_manager.py stop         # 停止服务
+  python3 ai_bridge_manager.py status       # 查看所有实例状态
+  python3 ai_bridge_manager.py add          # 添加作品
+  python3 ai_bridge_manager.py remove       # 移除作品
+  python3 ai_bridge_manager.py restart      # 重启实例
+  python3 ai_bridge_manager.py stop         # 停止实例
   python3 ai_bridge_manager.py logs         # 查看日志
-  python3 ai_bridge_manager.py stats        # 查看统计
-  python3 ai_bridge_manager.py prompt       # 修改提示词
+  python3 ai_bridge_manager.py clear-logs   # 清除日志
+  python3 ai_bridge_manager.py config       # 编辑配置
+  python3 ai_bridge_manager.py prompt       # 编辑提示词
 
-{CYAN}PM2 自动重启说明:{NC}
-  - 每 5 分钟自动重启一次 (cron_restart)
-  - 崩溃后自动重启 (autorestart)
-  - 最大重启次数: 1000 次
+{CYAN}多作品管理:{NC}
+  每个作品独立运行一个 PM2 实例
+  实例命名格式: ai-bridge-{作品ID}
+  配置文件: ai-bridge/config_{作品ID}.py
+  提示词: ai-bridge/system_prompt_{作品ID}.txt
 
-{CYAN}提示词文件位置:{NC}
-  {PROMPT_FILE}
+{CYAN}配置文件目录:{NC}
+  {CONFIG_DIR}
 """)
 
-# ==================== 主菜单 ====================
 
 def show_menu():
     """显示主菜单"""
@@ -700,40 +739,37 @@ def show_menu():
         print(f"{PURPLE}AI 桥接管理菜单{NC}")
         print(f"{PURPLE}════════════════════════════════════════════════════════════════{NC}\n")
         
-        print(f"  {CYAN}1.{NC} 查看服务状态")
-        print(f"  {CYAN}2.{NC} 重启服务")
-        print(f"  {CYAN}3.{NC} 启动服务")
-        print(f"  {CYAN}4.{NC} 停止服务")
-        print(f"  {CYAN}5.{NC} 查看日志")
-        print(f"  {CYAN}6.{NC} 查看统计")
-        print(f"  {CYAN}7.{NC} 修改作品ID")
-        print(f"  {CYAN}8.{NC} 修改 AI 配置")
-        print(f"  {CYAN}9.{NC} 修改云变量配置")
-        print(f"  {CYAN}10.{NC} 修改 AI 提示词")
+        print(f"  {CYAN}1.{NC} 查看所有实例状态")
+        print(f"  {CYAN}2.{NC} 添加作品")
+        print(f"  {CYAN}3.{NC} 移除作品")
+        print(f"  {CYAN}4.{NC} 重启实例")
+        print(f"  {CYAN}5.{NC} 停止实例")
+        print(f"  {CYAN}6.{NC} 查看日志")
+        print(f"  {CYAN}7.{NC} 清除日志")
+        print(f"  {CYAN}8.{NC} 编辑配置")
+        print(f"  {CYAN}9.{NC} 编辑提示词")
         print(f"  {CYAN}0.{NC} 退出")
         print()
         
         choice = input("请选择操作: ").strip()
         
         if choice == '1':
-            show_status()
+            show_all_status()
         elif choice == '2':
-            restart_service()
+            add_work()
         elif choice == '3':
-            start_service()
+            remove_work()
         elif choice == '4':
-            stop_service()
+            restart_instance()
         elif choice == '5':
-            show_logs()
+            stop_instance()
         elif choice == '6':
-            show_stats()
+            show_logs()
         elif choice == '7':
-            edit_work_id()
+            clear_logs()
         elif choice == '8':
-            edit_ai_config()
+            edit_config()
         elif choice == '9':
-            edit_variable_config()
-        elif choice == '10':
             edit_prompt()
         elif choice == '0':
             print(f"\n{GREEN}再见！{NC}\n")
@@ -741,30 +777,36 @@ def show_menu():
         else:
             log("WARN", "无效选择，请重新输入")
 
-# ==================== 主函数 ====================
 
 def main():
-    """主函数"""
     print_banner()
     
-    # 检查命令行参数
+    if not PM2_AVAILABLE:
+        log("ERROR", "PM2 未找到，请确保已安装 PM2")
+        log("INFO", "运行: npm install -g pm2")
+        return
+    
     if len(sys.argv) > 1:
         command = sys.argv[1].lower()
         
         if command == 'status':
-            show_status()
+            show_all_status()
+        elif command == 'add':
+            add_work()
+        elif command == 'remove':
+            remove_work(sys.argv[2] if len(sys.argv) > 2 else None)
         elif command == 'restart':
-            restart_service()
-        elif command == 'start':
-            start_service()
+            restart_instance(sys.argv[2] if len(sys.argv) > 2 else None)
         elif command == 'stop':
-            stop_service()
+            stop_instance(sys.argv[2] if len(sys.argv) > 2 else None)
         elif command == 'logs':
-            show_logs()
-        elif command == 'stats':
-            show_stats()
+            show_logs(sys.argv[2] if len(sys.argv) > 2 else None)
+        elif command == 'clear-logs':
+            clear_logs()
+        elif command == 'config':
+            edit_config(sys.argv[2] if len(sys.argv) > 2 else None)
         elif command == 'prompt':
-            edit_prompt()
+            edit_prompt(sys.argv[2] if len(sys.argv) > 2 else None)
         elif command in ['help', '-h', '--help']:
             show_help()
         else:
@@ -772,6 +814,7 @@ def main():
             show_help()
     else:
         show_menu()
+
 
 if __name__ == "__main__":
     main()
