@@ -218,7 +218,14 @@ def load_config(work_id: str = 'default') -> dict:
         safe_locals = {}
         exec(content, safe_globals, safe_locals)
         
-        return safe_locals.get('CONFIG', {})
+        config = safe_locals.get('CONFIG', {})
+        
+        # 清理配置值中的反引号
+        for key in config:
+            if isinstance(config[key], str):
+                config[key] = config[key].replace('`', '').strip()
+        
+        return config
     except Exception as e:
         log("ERROR", f"加载配置失败: {e}")
         return {}
@@ -228,6 +235,8 @@ def escape_string(s: str) -> str:
     """转义字符串中的特殊字符"""
     if not s:
         return ""
+    # 先删除反引号，再转义其他特殊字符
+    s = s.replace('`', '')
     return s.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
