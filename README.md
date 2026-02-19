@@ -34,8 +34,8 @@ bash deploy/auto-deploy.sh
 
 ### 解决什么问题？
 
-
-|--------|--------|
+| 问题 | 解决方案 |
+|------|----------|
 | 原版Kitten-Cloud-Function不提供http调用接口 | **HTTP 请求即可调用** |
 | k4 无AI功能 | **简单地接入AI** |
 
