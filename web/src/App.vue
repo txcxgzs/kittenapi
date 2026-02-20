@@ -1,5 +1,16 @@
 <template>
-  <div v-if="loading" class="loading-container">
+  <div v-if="errorOccurred" class="error-container">
+    <el-result
+      icon="error"
+      title="应用出错了"
+      sub-title="抱歉，应用遇到了一个错误"
+    >
+      <template #extra>
+        <el-button type="primary" @click="reloadPage">刷新页面</el-button>
+      </template>
+    </el-result>
+  </div>
+  <div v-else-if="loading" class="loading-container">
     <el-icon class="is-loading" :size="40"><Loading /></el-icon>
     <p>加载中...</p>
   </div>
@@ -51,7 +62,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onErrorCaptured } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Monitor, Document, Lock, Setting, Notebook, SwitchButton, Loading } from '@element-plus/icons-vue'
@@ -63,6 +74,17 @@ const currentRoute = computed(() => route.path)
 
 const loading = ref(true)
 const isLoggedIn = ref(false)
+const errorOccurred = ref(false)
+
+onErrorCaptured((error: Error) => {
+  console.error('应用错误:', error)
+  errorOccurred.value = true
+  return false
+})
+
+const reloadPage = () => {
+  window.location.reload()
+}
 
 onMounted(async () => {
   try {
@@ -168,5 +190,12 @@ html, body, #app {
 .loading-container p {
   margin-top: 10px;
   color: #606266;
+}
+
+.error-container {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 </style>

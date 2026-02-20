@@ -5,6 +5,7 @@ import { SettingsModel } from '../models/settings'
 import { config, configManager } from '../core/config'
 import { ConnectionManager } from '../core/connection-manager'
 import { adminAuthMiddleware } from '../middleware/auth'
+import { isValidIP } from '../utils/validation'
 
 const router = Router()
 
@@ -81,26 +82,13 @@ router.post('/blacklist/add', (req: Request, res: Response): void => {
     return
   }
 
-  const ipParts = ip.split('.')
-  if (ipParts.length !== 4) {
+  if (!isValidIP(ip)) {
     res.status(400).json({
       success: false,
       error: 'INVALID_PARAMS',
-      message: 'IP 地址格式无效'
+      message: 'IP 地址格式无效，仅支持 IPv4 和 IPv6 格式'
     })
     return
-  }
-  
-  for (const part of ipParts) {
-    const num = parseInt(part, 10)
-    if (isNaN(num) || num < 0 || num > 255) {
-      res.status(400).json({
-        success: false,
-        error: 'INVALID_PARAMS',
-        message: 'IP 地址格式无效，每段必须在 0-255 之间'
-      })
-      return
-    }
   }
   
   const added = IpBlacklistModel.add(ip, reason)
@@ -126,6 +114,15 @@ router.post('/blacklist/remove', (req: Request, res: Response): void => {
       success: false,
       error: 'INVALID_PARAMS',
       message: 'ip 参数无效'
+    })
+    return
+  }
+
+  if (!isValidIP(ip)) {
+    res.status(400).json({
+      success: false,
+      error: 'INVALID_PARAMS',
+      message: 'IP 地址格式无效，仅支持 IPv4 和 IPv6 格式'
     })
     return
   }
@@ -263,7 +260,7 @@ router.post('/authorization/verify', async (req: Request, res: Response): Promis
 })
 
 router.post('/authorization/set', async (req: Request, res: Response): Promise<void> => {
-  const { authorization } = req.body
+  const { authorization, force } = req.body
   
   if (!authorization || typeof authorization !== 'string') {
     res.status(400).json({
@@ -274,11 +271,11 @@ router.post('/authorization/set', async (req: Request, res: Response): Promise<v
     return
   }
   
-  if (ConnectionManager.hasAuthorization()) {
+  if (ConnectionManager.hasAuthorization() && !force) {
     res.json({
       success: false,
       error: 'ALREADY_CONFIGURED',
-      message: '身份认证已配置，如需更换请先清除'
+      message: '身份认证已配置，如需更换请使用 force: true 或先清除'
     })
     return
   }

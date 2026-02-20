@@ -192,7 +192,7 @@ const settings = ref<{
   apiKey: string
   logRetentionDays: number
 }>({
-  port: 3000,
+  port: 9178,
   apiKey: '',
   logRetentionDays: 30
 })
@@ -215,8 +215,9 @@ async function loadServerStatus() {
     if (res.data.success && res.data.data) {
       serverStatus.value = res.data.data
     }
-  } catch (e) {
+  } catch (e: unknown) {
     console.error(e)
+    ElMessage.error('获取服务器状态失败：' + (e instanceof Error ? e.message : '未知错误'))
   }
 }
 
@@ -226,8 +227,9 @@ async function loadAuthStatus() {
     if (res.data.success && res.data.data) {
       authStatus.value = res.data.data
     }
-  } catch (e) {
+  } catch (e: unknown) {
     console.error(e)
+    ElMessage.error('获取认证状态失败：' + (e instanceof Error ? e.message : '未知错误'))
   }
 }
 
@@ -240,8 +242,9 @@ async function loadSettings() {
       settings.value.logRetentionDays = data.logRetentionDays
       settings.value.apiKey = ''
     }
-  } catch (e) {
+  } catch (e: unknown) {
     console.error(e)
+    ElMessage.error('获取设置失败：' + (e instanceof Error ? e.message : '未知错误'))
   }
 }
 

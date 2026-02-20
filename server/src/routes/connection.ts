@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { ConnectionManager } from '../core/connection-manager'
+import { isValidWorkId } from '../utils/validation'
 
 const router = Router()
 
@@ -25,16 +26,7 @@ router.post('/connect', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workId } = req.body
     
-    if (typeof workId !== 'number' || isNaN(workId)) {
-      res.status(400).json({
-        success: false,
-        error: 'INVALID_PARAMS',
-        message: 'workId 参数无效，必须为数字'
-      })
-      return
-    }
-
-    if (workId <= 0) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
@@ -88,11 +80,11 @@ router.post('/disconnect', async (req: Request, res: Response): Promise<void> =>
   try {
     const { workId } = req.body
     
-    if (typeof workId !== 'number' || isNaN(workId)) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效，必须为数字'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }

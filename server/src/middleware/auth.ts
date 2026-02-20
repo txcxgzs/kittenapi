@@ -4,12 +4,13 @@ import { SettingsModel } from '../models/settings'
 
 const PUBLIC_PATHS = [
   '/health',
-  '/connection/connect',
-  '/connection/disconnect',
-  '/variable/',
-  '/list/',
-  '/online',
-  '/user/'
+  '/api/connection/connect',
+  '/api/connection/disconnect',
+  '/api/connections',
+  '/api/var/',
+  '/api/list/',
+  '/api/online',
+  '/api/user/'
 ]
 
 function isPublicPath(path: string): boolean {
@@ -18,7 +19,7 @@ function isPublicPath(path: string): boolean {
 
 function hasApiKey(): boolean {
   const apiKey = SettingsModel.get('apiKey')
-  return !!apiKey && apiKey.length > 0
+  return apiKey !== null && apiKey.length > 0
 }
 
 export function sessionAuthMiddleware(req: Request, res: Response, next: NextFunction): void {

@@ -804,6 +804,80 @@ def edit_prompt(work_id: str = None):
                 restart_instance(work_id)
 
 
+def set_codemao_cookie():
+    """设置编程猫 Cookie"""
+    print(f"\n{CYAN}════════════════════════════════════════════════════════════════{NC}")
+    print(f"{CYAN}设置编程猫 Cookie{NC}")
+    print(f"{CYAN}════════════════════════════════════════════════════════════════{NC}\n")
+    
+    print("获取编程猫 Cookie 的方法：")
+    print(f"  {YELLOW}1.{NC} 登录 https://shequ.codemao.cn/")
+    print(f"  {YELLOW}2.{NC} 按 F12 打开开发者工具")
+    print(f"  {YELLOW}3.{NC} 切换到 Application（应用）标签")
+    print(f"  {YELLOW}4.{NC} 在左侧找到 Cookies -> https://shequ.codemao.cn")
+    print(f"  {YELLOW}5.{NC} 找到 authorization 的值，复制")
+    print()
+    
+    cookie = input("请输入 authorization Cookie 值: ").strip()
+    
+    if not cookie:
+        log("WARN", "未输入 Cookie，取消操作")
+        return
+    
+    cookie = cookie.replace('`', '').replace("'", '').replace('"', '').strip()
+    
+    config = load_config('default')
+    api_base_url = config.get('api_base_url', 'http://localhost:9178/api')
+    
+    import urllib.request
+    import urllib.error
+    
+    url = f"{api_base_url}/admin/authorization/set"
+    
+    print(f"\n{CYAN}正在验证 Cookie...{NC}")
+    
+    try:
+        data = json.dumps({"authorization": cookie, "force": True}).encode('utf-8')
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={
+                'Content-Type': 'application/json',
+                'X-Auth-Token': 'cli-setup'
+            },
+            method='POST'
+        )
+        
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode('utf-8'))
+            
+            if result.get('success'):
+                user_info = result.get('data', {}).get('userInfo', {})
+                log("SUCCESS", f"Cookie 设置成功！")
+                print(f"  用户ID: {user_info.get('id', '未知')}")
+                print(f"  昵称: {user_info.get('nickname', '未知')}")
+                print()
+                log("INFO", "请重启后端服务: pm2 restart kitten-cloud-api")
+            else:
+                if result.get('error') == 'ALREADY_CONFIGURED':
+                    log("WARN", "Cookie 已配置，请先清除旧 Cookie")
+                    print("\n清除方法：")
+                    print("  curl -X DELETE http://localhost:9178/api/admin/authorization")
+                else:
+                    log("ERROR", f"设置失败: {result.get('message', '未知错误')}")
+    
+    except urllib.error.HTTPError as e:
+        if e.code == 401:
+            log("ERROR", "需要先登录管理后台")
+            print("\n请先访问管理后台登录: http://你的服务器IP:9178")
+        else:
+            log("ERROR", f"HTTP 错误: {e.code}")
+    except urllib.error.URLError as e:
+        log("ERROR", f"连接失败: {e.reason}")
+    except Exception as e:
+        log("ERROR", f"设置失败: {e}")
+
+
 def show_help():
     """显示帮助"""
     print(f"""
@@ -846,6 +920,7 @@ def show_menu():
         print(f"  {CYAN}7.{NC} 清除日志")
         print(f"  {CYAN}8.{NC} 编辑配置")
         print(f"  {CYAN}9.{NC} 编辑提示词")
+        print(f"  {CYAN}10.{NC} 设置编程猫 Cookie")
         print(f"  {CYAN}0.{NC} 退出")
         print()
         
@@ -869,6 +944,8 @@ def show_menu():
             edit_config()
         elif choice == '9':
             edit_prompt()
+        elif choice == '10':
+            set_codemao_cookie()
         elif choice == '0':
             print(f"\n{GREEN}再见！{NC}\n")
             break

@@ -165,6 +165,7 @@ export const connectionsApi = {
 
 export const variableApi = {
   get: (workId: number, name: string) => api.get<ApiResponse<VariableInfo>>(`/var/${workId}/${name}`),
+  getPost: (workId: number, name: string) => api.post<ApiResponse<VariableInfo>>('/var/get', { workId, name }),
   set: (workId: number, name: string, value: string | number, type?: string) => 
     api.post<ApiResponse>('/var/set', { workId, name, value, type }),
   list: (workId: number) => api.get<ApiResponse<VariablesResponse>>(`/var/${workId}`),
@@ -175,6 +176,7 @@ export const variableApi = {
 export const listApi = {
   getAll: (workId: number) => api.get<ApiResponse<{ lists: ListItem[] }>>(`/list/${workId}`),
   get: (workId: number, name: string) => api.get<ApiResponse<ListItem>>(`/list/${workId}/${name}`),
+  getPost: (workId: number, name: string) => api.post<ApiResponse<ListItem>>('/list/get', { workId, name }),
   push: (workId: number, name: string, value: string | number) =>
     api.post<ApiResponse>('/list/push', { workId, name, value }),
   unshift: (workId: number, name: string, value: string | number) =>
@@ -189,6 +191,8 @@ export const listApi = {
     api.post<ApiResponse>('/list/empty', { workId, name }),
   replace: (workId: number, name: string, index: number, value: string | number) =>
     api.post<ApiResponse>('/list/replace', { workId, name, index, value }),
+  replaceLast: (workId: number, name: string, value: string | number) =>
+    api.post<ApiResponse>('/list/replaceLast', { workId, name, value }),
   setAll: (workId: number, name: string, items: (string | number)[]) =>
     api.post<ApiResponse>('/list/setAll', { workId, name, items })
 }

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { ConnectionManager } from '../core/connection-manager'
 import { KittenCloudFunction } from 'kitten-cloud-function'
+import { isValidWorkId } from '../utils/validation'
 
 const router = Router()
 
@@ -8,11 +9,11 @@ router.get('/:workId', async (req: Request, res: Response): Promise<void> => {
   try {
     const workId = parseInt(req.params.workId, 10)
     
-    if (isNaN(workId)) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }
@@ -40,11 +41,11 @@ router.post('/', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workId } = req.body
     
-    if (!workId || typeof workId !== 'number') {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }

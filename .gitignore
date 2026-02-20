@@ -2,7 +2,7 @@
 node_modules/
 
 # Lock files
-package-lock.json
+Kitten-Cloud-Function/package-lock.json
 
 # Build output
 dist/
@@ -17,7 +17,8 @@ build/
 # Database
 *.db
 *.sqlite
-server/data/
+server/data/*
+!server/data/.gitkeep
 
 # Logs
 logs/
@@ -55,6 +56,8 @@ ai-bridge/config_*.py
 ai-bridge/ecosystem.config.js
 ai-bridge/*.json
 ai-bridge/system_prompt*.txt
+ai-bridge/logs/
+!ai-bridge/.gitkeep
 
 # Deploy config
 deploy/deploy.conf

@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express'
 import { ConnectionManager } from '../core/connection-manager'
 import { KittenCloudVariable } from 'kitten-cloud-function'
+import { isValidWorkId, isValidString, hasValue } from '../utils/validation'
 
 const router = Router()
 
@@ -9,11 +10,11 @@ router.get('/:workId/:name', async (req: Request, res: Response): Promise<void> 
     const workId = parseInt(req.params.workId, 10)
     const name = req.params.name
     
-    if (isNaN(workId)) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }
@@ -62,11 +63,11 @@ router.get('/:workId', async (req: Request, res: Response): Promise<void> => {
   try {
     const workId = parseInt(req.params.workId, 10)
     
-    if (isNaN(workId)) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }
@@ -104,16 +105,16 @@ router.post('/get', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workId, name } = req.body
     
-    if (typeof workId !== 'number' || isNaN(workId)) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }
     
-    if (!name || typeof name !== 'string') {
+    if (!isValidString(name)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
@@ -166,16 +167,16 @@ router.post('/set', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workId, name, value, type = 'public' } = req.body
     
-    if (typeof workId !== 'number' || isNaN(workId)) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }
     
-    if (!name || typeof name !== 'string') {
+    if (!isValidString(name)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
@@ -184,7 +185,7 @@ router.post('/set', async (req: Request, res: Response): Promise<void> => {
       return
     }
     
-    if (value === undefined) {
+    if (!hasValue(value)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
@@ -244,16 +245,16 @@ router.post('/rank', async (req: Request, res: Response): Promise<void> => {
   try {
     const { workId, name, limit = 10, order = -1 } = req.body
     
-    if (typeof workId !== 'number' || isNaN(workId)) {
+    if (!isValidWorkId(workId)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',
-        message: 'workId 参数无效'
+        message: 'workId 参数无效，必须为正整数'
       })
       return
     }
     
-    if (!name || typeof name !== 'string') {
+    if (!isValidString(name)) {
       res.status(400).json({
         success: false,
         error: 'INVALID_PARAMS',

@@ -47,13 +47,17 @@ bash deploy/auto-deploy.sh
 
 ```bash
 # 连接作品
-curl -X POST http://你的服务器/api/connect/作品ID
+curl -X POST http://你的服务器:9178/api/connection/connect \
+  -H "Content-Type: application/json" \
+  -d '{"workId": 123456}'
 
 # 设置云变量
-curl -X PUT http://你的服务器/api/variable/变量名 -d "值"
+curl -X POST http://你的服务器:9178/api/var/set \
+  -H "Content-Type: application/json" \
+  -d '{"workId": 123456, "name": "分数", "value": 100}'
 
 # 获取云变量
-curl http://你的服务器/api/variable/变量名
+curl http://你的服务器:9178/api/var/123456/分数
 ```
 
 #### 2️⃣ AI 桥接服务
@@ -88,12 +92,28 @@ curl http://你的服务器/api/variable/变量名
 
 | 接口 | 方法 | 说明 |
 |------|------|------|
-| `/api/connect/:workId` | POST | 连接到指定作品 |
-| `/api/disconnect` | POST | 断开当前连接 |
-| `/api/variable/:name` | GET/PUT | 获取/设置云变量 |
-| `/api/list/:name` | GET/POST/PUT/DELETE | 云列表 CRUD 操作 |
-| `/api/online` | GET | 获取在线人数 |
-| `/api/user/:id` | GET | 获取用户信息 |
+| `/api/connection/connect` | POST | 连接到指定作品 |
+| `/api/connection/disconnect` | POST | 断开当前连接 |
+| `/api/connections` | GET | 获取所有连接状态 |
+| `/api/var/:workId` | GET | 获取作品所有云变量 |
+| `/api/var/:workId/:name` | GET | 获取指定云变量 |
+| `/api/var/get` | POST | 获取云变量（POST方式） |
+| `/api/var/set` | POST | 设置云变量 |
+| `/api/var/rank` | POST | 获取私有变量排行榜 |
+| `/api/list/:workId` | GET | 获取所有云列表 |
+| `/api/list/:workId/:name` | GET | 获取指定云列表 |
+| `/api/list/get` | POST | 获取云列表（POST方式） |
+| `/api/list/push` | POST | 云列表尾部添加项 |
+| `/api/list/unshift` | POST | 云列表头部添加项 |
+| `/api/list/add` | POST | 云列表指定位置添加项 |
+| `/api/list/pop` | POST | 移除云列表尾部项 |
+| `/api/list/remove` | POST | 移除云列表指定位置项 |
+| `/api/list/empty` | POST | 清空云列表 |
+| `/api/list/replace` | POST | 替换云列表指定位置项 |
+| `/api/list/replaceLast` | POST | 替换云列表尾部项 |
+| `/api/list/setAll` | POST | 批量替换云列表 |
+| `/api/online/:workId` | GET | 获取在线人数 |
+| `/api/user/info` | GET | 获取当前用户信息 |
 
 ### AI 桥接功能
 
@@ -211,7 +231,7 @@ cp server/.env.example server/.env
 nano server/.env  # 填入你的配置
 
 # 3. 启动服务
-cd server && pm2 start dist/app.js --name kitten-api
+cd server && pm2 start dist/app.js --name kitten-cloud-api
 ```
 
 > ⚠️ **注意**：手动部署时，首次访问管理后台会提示设置密码。建议使用一键部署脚本自动完成密码设置。
@@ -275,6 +295,7 @@ AI 桥接管理菜单
   7. 清除日志              ← 一键清除所有日志
   8. 编辑配置
   9. 编辑提示词            ← 自定义 AI 的行为和回复风格
+  10. 设置编程猫 Cookie    ← 更换编程猫账号
   0. 退出
 ```
 
@@ -288,6 +309,7 @@ AI 桥接管理菜单
 | 查看日志 | 查看指定实例的运行日志 |
 | 清除日志 | 一键清除所有日志文件 |
 | 编辑提示词 | 自定义 AI 的行为、回复风格等 |
+| 设置编程猫 Cookie | 更换编程猫账号授权 |
 
 ---
 
@@ -329,9 +351,27 @@ CONFIG = {
     "ai_model": "部署时配置的AI模型",
     "variable_name": "部署时配置的云变量名",
     "question_prefix": "部署时配置的问题前缀",
-    "answer_prefix": "部署时配置的答案前缀"
+    "answer_prefix": "部署时配置的答案前缀",
+    "system_prompt_file": "系统提示词文件路径（可选）",
+    "request_timeout": 60,  # 请求超时时间（秒）
+    "max_retries": 3        # 最大重试次数
 }
 ```
+
+#### 配置项说明
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `api_base_url` | Kitten Cloud API 地址 | - |
+| `ai_api_url` | AI API 地址（如 OpenAI 兼容接口） | - |
+| `ai_api_key` | AI API 密钥 | - |
+| `ai_model` | AI 模型名称 | - |
+| `variable_name` | 用于接收问题的云变量名 | - |
+| `question_prefix` | 问题前缀（用于识别问题） | `问:` |
+| `answer_prefix` | 答案前缀（用于识别答案） | `答:` |
+| `system_prompt_file` | 系统提示词文件路径 | `prompts/system_prompt.txt` |
+| `request_timeout` | AI API 请求超时时间（秒） | `60` |
+| `max_retries` | 请求失败时的最大重试次数 | `3` |
 
 > 💡 **提示**：部署脚本会引导你输入这些值，无需手动创建配置文件。
 

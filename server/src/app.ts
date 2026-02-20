@@ -1,10 +1,12 @@
 import express from 'express'
 import cors from 'cors'
 import path from 'path'
+import rateLimit from 'express-rate-limit'
 import { config, validateConfig } from './core/config'
 import { ConnectionManager } from './core/connection-manager'
 import { initDatabase } from './models/database'
 import { SettingsModel } from './models/settings'
+import { ApiLogModel } from './models/api-log'
 import { ipFilter } from './middleware/ip-filter'
 import { apiLogger } from './middleware/logger'
 import { authMiddleware } from './middleware/auth'
@@ -14,12 +16,22 @@ import crypto from 'crypto'
 
 const app = express()
 
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: 'TOO_MANY_REQUESTS',
+    message: '请求过于频繁，请稍后再试'
+  }
+})
+
 const allowedOrigins = [
-  'http://localhost:3000',
   'http://localhost:5173',
   'http://localhost:8080',
   'http://localhost:9178',
-  'http://127.0.0.1:3000',
   'http://127.0.0.1:5173',
   'http://127.0.0.1:8080',
   'http://127.0.0.1:9178'
@@ -41,6 +53,7 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
 app.use(ipFilter)
+app.use('/api', apiLimiter)
 app.use(apiLogger)
 app.use(authMiddleware)
 
@@ -132,6 +145,23 @@ function initApiKey(): void {
   }
 }
 
+function startLogCleanupTask(): void {
+  const cleanupInterval = 24 * 60 * 60 * 1000
+  
+  const cleanup = () => {
+    const retentionDays = parseInt(String(SettingsModel.get('logRetentionDays') || '30'), 10)
+    logger.info(`开始清理 ${retentionDays} 天前的日志...`)
+    ApiLogModel.deleteOlderThan(retentionDays)
+    logger.info('日志清理完成')
+  }
+  
+  cleanup()
+  
+  setInterval(cleanup, cleanupInterval)
+  
+  logger.info('日志清理定时任务已启动，每天执行一次')
+}
+
 async function start() {
   validateConfig()
   
@@ -141,6 +171,8 @@ async function start() {
   
   initAdminPassword()
   initApiKey()
+  
+  startLogCleanupTask()
   
   await ConnectionManager.initialize()
   

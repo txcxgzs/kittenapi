@@ -61,6 +61,14 @@ class ConfigManager {
     this.saveToEnv('LOG_RETENTION_DAYS', days.toString())
   }
 
+  private escapeEnvValue(value: string): string {
+    if (value.includes('\n') || value.includes('"') || value.includes("'") || 
+        value.includes(' ') || value.includes('\t') || value.includes('=')) {
+      return `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/\n/g, '\\n')}"`
+    }
+    return value
+  }
+
   private saveToEnv(key: string, value: string): void {
     let content = ''
     
@@ -68,18 +76,19 @@ class ConfigManager {
       content = fs.readFileSync(this.envPath, 'utf-8')
     }
 
+    const escapedValue = this.escapeEnvValue(value)
     const lines = content.split('\n')
     let found = false
     const newLines = lines.map(line => {
       if (line.startsWith(`${key}=`) || line.startsWith(`# ${key}=`)) {
         found = true
-        return `${key}=${value}`
+        return `${key}=${escapedValue}`
       }
       return line
     })
 
     if (!found) {
-      newLines.push(`${key}=${value}`)
+      newLines.push(`${key}=${escapedValue}`)
     }
 
     fs.writeFileSync(this.envPath, newLines.join('\n'), 'utf-8')

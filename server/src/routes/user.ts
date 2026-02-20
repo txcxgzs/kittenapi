@@ -15,16 +15,16 @@ router.get('/info', async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    const user = KittenCloudFunction.user
-    
-    if (!user) {
-      res.status(503).json({
+    if (ConnectionManager.isAuthorizationValid() === false) {
+      res.status(401).json({
         success: false,
-        error: 'SERVICE_UNAVAILABLE',
-        message: '用户服务未初始化'
+        error: 'AUTHORIZATION_INVALID',
+        message: '身份认证已失效，请重新配置'
       })
       return
     }
+    
+    const user = KittenCloudFunction.user
     
     const info = {
       id: await user.info.id,

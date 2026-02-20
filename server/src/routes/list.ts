@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { ConnectionManager } from '../core/connection-manager'
+import { isValidWorkId, isValidString, isValidNonNegativeNumber, hasValue } from '../utils/validation'
 
 const router = Router()
 
@@ -30,27 +31,27 @@ function sendListNotFoundError(res: Response, error: unknown, defaultMessage: st
   sendErrorResponse(res, 500, 'LIST_NOT_FOUND', message)
 }
 
-function validateWorkId(workId: unknown): workId is number {
-  return typeof workId === 'number' && !isNaN(workId)
-}
-
 function validateRequiredString(value: unknown): value is string {
-  return typeof value === 'string' && value.length > 0
+  return isValidString(value)
 }
 
 function validateNonNegativeNumber(value: unknown): value is number {
-  return typeof value === 'number' && !isNaN(value) && value >= 0
+  return isValidNonNegativeNumber(value)
 }
 
 function validateRequiredValue(value: unknown): boolean {
-  return value !== undefined && value !== null
+  return hasValue(value)
+}
+
+function validateWorkId(workId: unknown): workId is number {
+  return isValidWorkId(workId)
 }
 
 router.get('/:workId', async (req: Request, res: Response): Promise<void> => {
   try {
     const workId = parseInt(req.params.workId, 10)
     
-    if (isNaN(workId)) {
+    if (!validateWorkId(workId)) {
       return sendInvalidParamError(res, 'workId')
     }
     
@@ -78,7 +79,7 @@ router.get('/:workId/:name', async (req: Request, res: Response): Promise<void> 
     const workId = parseInt(req.params.workId, 10)
     const name = req.params.name
     
-    if (isNaN(workId)) {
+    if (!validateWorkId(workId)) {
       return sendInvalidParamError(res, 'workId')
     }
     
@@ -234,6 +235,11 @@ router.post('/pop', async (req: Request, res: Response): Promise<void> => {
     }
     
     const list = await getList(workId, name)
+    
+    if (list.length === 0) {
+      return sendErrorResponse(res, 400, 'LIST_EMPTY', '列表为空，无法执行 pop 操作')
+    }
+    
     const removedItem = list.get(list.length - 1)
     await list.pop()
     
@@ -267,6 +273,15 @@ router.post('/remove', async (req: Request, res: Response): Promise<void> => {
     }
     
     const list = await getList(workId, name)
+    
+    if (list.length === 0) {
+      return sendErrorResponse(res, 400, 'LIST_EMPTY', '列表为空，无法执行 remove 操作')
+    }
+    
+    if (index >= list.length) {
+      return sendErrorResponse(res, 400, 'INDEX_OUT_OF_RANGE', `索引 ${index} 超出范围，列表长度为 ${list.length}`)
+    }
+    
     const removedItem = list.get(index)
     await list.remove(index)
     
@@ -331,6 +346,15 @@ router.post('/replace', async (req: Request, res: Response): Promise<void> => {
     }
     
     const list = await getList(workId, name)
+    
+    if (list.length === 0) {
+      return sendErrorResponse(res, 400, 'LIST_EMPTY', '列表为空，无法执行 replace 操作')
+    }
+    
+    if (index >= list.length) {
+      return sendErrorResponse(res, 400, 'INDEX_OUT_OF_RANGE', `索引 ${index} 超出范围，列表长度为 ${list.length}`)
+    }
+    
     const originalItem = list.get(index)
     await list.replace(index, value)
     
@@ -364,6 +388,11 @@ router.post('/replaceLast', async (req: Request, res: Response): Promise<void> =
     }
     
     const list = await getList(workId, name)
+    
+    if (list.length === 0) {
+      return sendErrorResponse(res, 400, 'LIST_EMPTY', '列表为空，无法执行 replaceLast 操作')
+    }
+    
     const originalItem = list.get(list.length - 1)
     await list.replaceLast(value)
     

@@ -113,6 +113,9 @@ ask_input() {
         # 清理输入中的特殊字符（反引号、单引号、双引号）
         answer=$(echo "$answer" | sed "s/[\`\']//g" | sed 's/"//g')
         
+        # 去除首尾空格
+        answer=$(echo "$answer" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        
         if [ -z "$answer" ] && [ "$required" = true ]; then
             echo -e "${RED}此项为必填项，请输入${NC}"
         else
@@ -282,13 +285,48 @@ find_project_dir() {
 
 # ==================== 环境安装函数 ====================
 
+detect_package_manager() {
+    if command -v apt-get &> /dev/null; then
+        echo "apt"
+    elif command -v yum &> /dev/null; then
+        echo "yum"
+    elif command -v dnf &> /dev/null; then
+        echo "dnf"
+    else
+        echo "unknown"
+    fi
+}
+
 install_dependencies() {
     log "STEP" "安装系统依赖包..."
     
-    yum install -y curl wget git vim tar gzip unzip \
-        gcc gcc-c++ make automake autoconf libtool \
-        openssl-devel bzip2-devel libffi-devel zlib-devel \
-        sqlite-devel net-tools > /dev/null 2>&1
+    local pkg_manager=$(detect_package_manager)
+    
+    case $pkg_manager in
+        apt)
+            apt-get update -qq
+            apt-get install -y -qq curl wget git vim tar gzip unzip \
+                gcc g++ make automake autoconf libtool \
+                libssl-dev libbz2-dev libffi-dev zlib1g-dev \
+                libsqlite3-dev net-tools > /dev/null 2>&1
+            ;;
+        yum)
+            yum install -y -q curl wget git vim tar gzip unzip \
+                gcc gcc-c++ make automake autoconf libtool \
+                openssl-devel bzip2-devel libffi-devel zlib-devel \
+                sqlite-devel net-tools > /dev/null 2>&1
+            ;;
+        dnf)
+            dnf install -y -q curl wget git vim tar gzip unzip \
+                gcc gcc-c++ make automake autoconf libtool \
+                openssl-devel bzip2-devel libffi-devel zlib-devel \
+                sqlite-devel net-tools > /dev/null 2>&1
+            ;;
+        *)
+            log "WARN" "无法识别的包管理器，跳过系统依赖安装"
+            return 0
+            ;;
+    esac
     
     log "OK" "系统依赖包安装完成"
 }
@@ -423,7 +461,25 @@ install_python() {
     fi
     
     log "INFO" "正在安装 Python 3..."
-    yum install -y python3 python3-pip > /dev/null 2>&1
+    
+    local pkg_manager=$(detect_package_manager)
+    
+    case $pkg_manager in
+        apt)
+            apt-get install -y -qq python3 python3-pip > /dev/null 2>&1
+            ;;
+        yum)
+            yum install -y -q python3 python3-pip > /dev/null 2>&1
+            ;;
+        dnf)
+            dnf install -y -q python3 python3-pip > /dev/null 2>&1
+            ;;
+        *)
+            log "WARN" "无法识别的包管理器，跳过 Python 安装"
+            return 0
+            ;;
+    esac
+    
     pip3 install requests -i https://pypi.tuna.tsinghua.edu.cn/simple > /dev/null 2>&1
     
     if command -v python3 &> /dev/null; then
@@ -632,6 +688,9 @@ EOF
     
     # 创建日志目录
     mkdir -p "$config_dir/logs"
+    
+    # 设置配置文件权限（包含敏感信息）
+    chmod 600 "$config_dir/config.py"
     
     log "OK" "AI 桥接配置完成"
     echo ""
@@ -1007,6 +1066,15 @@ print_completion() {
     local server_ip=$(curl -s --connect-timeout 3 "https://myip.ipip.net/ip" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     if [ -z "$server_ip" ]; then
         server_ip=$(curl -s --connect-timeout 3 "http://ip.3322.net" 2>/dev/null)
+    fi
+    if [ -z "$server_ip" ]; then
+        server_ip=$(curl -s --connect-timeout 3 "https://api.ipify.org" 2>/dev/null)
+    fi
+    if [ -z "$server_ip" ]; then
+        server_ip=$(curl -s --connect-timeout 3 "https://ifconfig.me" 2>/dev/null)
+    fi
+    if [ -z "$server_ip" ]; then
+        server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')
     fi
     if [ -z "$server_ip" ]; then
         server_ip="服务器IP"

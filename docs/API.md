@@ -8,7 +8,7 @@
 
 ### 1.1 基础信息
 
-- **Base URL**: `http://your-server:3000/api`
+- **Base URL**: `http://your-server:9178/api`
 - **Content-Type**: `application/json`
 - **认证方式**: API Key（可选，在请求头添加 `X-API-Key`）
 
@@ -192,7 +192,7 @@
 |------|------|------|------|
 | workId | number | 是 | 作品 ID |
 | name | string | 是 | 变量名 |
-| value | string \| number | 是 | 新值 |
+| value | any | 是 | 新值（支持 string、number、boolean、object 等 JSON 类型） |
 | type | string | 否 | 变量类型：`public`(默认) 或 `private` |
 
 **响应**
@@ -318,7 +318,7 @@
 
 ---
 
-### 4.2 尾部添加项
+### 4.3 尾部添加项
 
 **POST** `/api/list/push`
 
@@ -351,7 +351,7 @@
 
 ---
 
-### 4.3 头部添加项
+### 4.4 头部添加项
 
 **POST** `/api/list/unshift`
 
@@ -368,7 +368,7 @@
 
 ---
 
-### 4.4 指定位置添加项
+### 4.5 指定位置添加项
 
 **POST** `/api/list/add`
 
@@ -390,7 +390,7 @@
 
 ---
 
-### 4.5 移除尾部项
+### 4.6 移除尾部项
 
 **POST** `/api/list/pop`
 
@@ -417,7 +417,7 @@
 
 ---
 
-### 4.6 移除指定位置项
+### 4.7 移除指定位置项
 
 **POST** `/api/list/remove`
 
@@ -434,7 +434,7 @@
 
 ---
 
-### 4.7 清空列表
+### 4.8 清空列表
 
 **POST** `/api/list/empty`
 
@@ -450,7 +450,7 @@
 
 ---
 
-### 4.8 替换指定位置项
+### 4.9 替换指定位置项
 
 **POST** `/api/list/replace`
 
@@ -468,7 +468,7 @@
 
 ---
 
-### 4.9 替换尾部项
+### 4.10 替换尾部项
 
 **POST** `/api/list/replaceLast`
 
@@ -485,7 +485,7 @@
 
 ---
 
-### 4.10 批量替换列表
+### 4.11 批量替换列表
 
 **POST** `/api/list/setAll`
 
@@ -549,7 +549,9 @@
     "nickname": "用户昵称",
     "username": "username",
     "avatarURL": "https://...",
-    "grade": 10
+    "grade": 10,
+    "email": "user@example.com",
+    "description": "用户简介"
   }
 }
 ```
@@ -587,9 +589,7 @@
         "response_time": 50
       }
     ],
-    "total": 100,
-    "page": 1,
-    "limit": 20
+    "total": 100
   }
 }
 ```
@@ -655,8 +655,10 @@
 {
   "success": true,
   "data": {
+    "port": 9178,
     "apiKeyEnabled": true,
-    "logRetentionDays": 30
+    "logRetentionDays": 30,
+    "authorizationConfigured": true
   }
 }
 ```
@@ -682,10 +684,19 @@
 | `WORK_NOT_CONNECTED` | 作品未连接 |
 | `VARIABLE_NOT_FOUND` | 变量不存在 |
 | `LIST_NOT_FOUND` | 列表不存在 |
+| `LIST_EMPTY` | 列表为空 |
+| `INDEX_OUT_OF_RANGE` | 索引超出范围 |
 | `CONNECTION_FAILED` | 连接失败 |
 | `UNAUTHORIZED` | 未授权（IP 被拉黑或 API Key 错误） |
 | `NOT_FOUND` | 接口不存在 |
 | `INTERNAL_ERROR` | 内部错误 |
+| `AUTHORIZATION_REQUIRED` | 需要身份认证 |
+| `INVALID_AUTHORIZATION` | 身份认证无效 |
+| `ALREADY_CONFIGURED` | 已配置 |
+| `TOO_MANY_ATTEMPTS` | 登录尝试次数过多 |
+| `INVALID_PASSWORD` | 密码错误 |
+| `NO_PASSWORD_SET` | 未设置密码 |
+| `ALREADY_INITIALIZED` | 已初始化 |
 
 ---
 
@@ -695,24 +706,24 @@
 
 ```bash
 # 连接作品
-curl -X POST http://localhost:3000/api/connection/connect \
+curl -X POST http://localhost:9178/api/connection/connect \
   -H "Content-Type: application/json" \
   -d '{"workId": 114514}'
 
 # 设置变量
-curl -X POST http://localhost:3000/api/var/set \
+curl -X POST http://localhost:9178/api/var/set \
   -H "Content-Type: application/json" \
   -d '{"workId": 114514, "name": "分数", "value": 100}'
 
 # 获取列表
-curl -X GET http://localhost:3000/api/list/114514/排行榜
+curl -X GET http://localhost:9178/api/list/114514/排行榜
 ```
 
 ### JavaScript (Axios)
 
 ```javascript
 const axios = require('axios')
-const BASE_URL = 'http://localhost:3000/api'
+const BASE_URL = 'http://localhost:9178/api'
 
 // 连接作品
 await axios.post(`${BASE_URL}/connection/connect`, { workId: 114514 })
@@ -734,7 +745,7 @@ console.log(data.data.items)
 ```python
 import requests
 
-BASE_URL = 'http://localhost:3000/api'
+BASE_URL = 'http://localhost:9178/api'
 
 # 连接作品
 requests.post(f'{BASE_URL}/connection/connect', json={'workId': 114514})
@@ -753,5 +764,5 @@ print(resp.json()['data']['items'])
 
 ---
 
-**文档版本**：1.0
-**最后更新**：2026-02-15
+**文档版本**：1.1
+**最后更新**：2026-02-20
