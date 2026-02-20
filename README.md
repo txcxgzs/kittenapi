@@ -238,15 +238,21 @@ cd server && pm2 start dist/app.js --name kitten-cloud-api
 
 ---
 
-## ⚡ 快捷命令设置
+## ⚡ 快捷命令
 
-部署完成后，建议创建快捷命令，方便日常管理：
+部署脚本会自动创建 `ktai` 快捷命令，无需手动配置。
 
-### 创建 `ktai` 快捷命令
+### 自动创建
+
+一键部署脚本会在安装完成后自动创建 `ktai` 快捷命令到 `~/.bashrc` 或 `~/.zshrc`。
+
+### 手动创建（可选）
+
+如果需要手动创建，执行以下命令：
 
 ```bash
-# 在服务器上执行以下命令（将路径替换为你的实际项目路径）
-echo 'alias ktai="cd /你的项目路径 && python3 ai_bridge_manager.py"' >> ~/.bashrc
+# 将路径替换为你的实际项目路径
+echo "alias ktai='cd /你的项目路径 && python3 ai_bridge_manager.py'" >> ~/.bashrc
 source ~/.bashrc
 ```
 

@@ -15,7 +15,10 @@ router.get('/info', async (req: Request, res: Response): Promise<void> => {
       return
     }
 
-    if (ConnectionManager.isAuthorizationValid() === false) {
+    await ConnectionManager.waitForInitialization()
+
+    const isValid = ConnectionManager.isAuthorizationValid()
+    if (isValid === false) {
       res.status(401).json({
         success: false,
         error: 'AUTHORIZATION_INVALID',
@@ -26,20 +29,28 @@ router.get('/info', async (req: Request, res: Response): Promise<void> => {
     
     const user = KittenCloudFunction.user
     
-    const info = {
-      id: await user.info.id,
-      nickname: await user.info.nickname,
-      username: await user.info.username,
-      avatarURL: await user.info.avatarURL,
-      description: await user.info.description,
-      grade: await user.info.grade,
-      email: await user.info.email
+    try {
+      const info = {
+        id: await user.info.id,
+        nickname: await user.info.nickname,
+        username: await user.info.username,
+        avatarURL: await user.info.avatarURL,
+        description: await user.info.description,
+        grade: await user.info.grade,
+        email: await user.info.email
+      }
+      
+      res.json({
+        success: true,
+        data: info
+      })
+    } catch (userError) {
+      res.status(401).json({
+        success: false,
+        error: 'AUTHORIZATION_INVALID',
+        message: '身份认证无效或已过期，请检查 Cookie 配置'
+      })
     }
-    
-    res.json({
-      success: true,
-      data: info
-    })
   } catch (error) {
     res.status(500).json({
       success: false,

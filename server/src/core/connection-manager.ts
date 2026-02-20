@@ -15,10 +15,17 @@ class ConnectionManagerClass {
   private connections: Map<number, ConnectionInfo> = new Map()
   private initialized: boolean = false
   private authorizationValid: boolean | null = null
+  private initPromise: Promise<void> | null = null
 
   async initialize(): Promise<void> {
     if (this.initialized) return
+    if (this.initPromise) return this.initPromise
     
+    this.initPromise = this.doInitialize()
+    return this.initPromise
+  }
+
+  private async doInitialize(): Promise<void> {
     if (config.codemaoAuthorization) {
       try {
         await CodemaoUser.setAuthorization(config.codemaoAuthorization)
@@ -33,8 +40,18 @@ class ConnectionManagerClass {
     this.initialized = true
   }
 
+  async waitForInitialization(): Promise<void> {
+    if (this.initialized) return
+    if (this.initPromise) return this.initPromise
+    return this.initialize()
+  }
+
   isAuthorizationValid(): boolean | null {
     return this.authorizationValid
+  }
+
+  isInitialized(): boolean {
+    return this.initialized
   }
 
   hasAuthorization(): boolean {
