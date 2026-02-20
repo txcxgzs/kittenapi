@@ -9,7 +9,7 @@ Kitten Cloud API - AI 桥接程序
   python3 kitten_ai_bridge.py                              # 交互模式
   python3 kitten_ai_bridge.py -w 123456                    # 指定作品ID
   python3 kitten_ai_bridge.py -w 123456 -u http://xxx/api  # 指定API地址
-  python3 kitten_ai_bridge.py -c ./ai-bridge/config.py     # 使用配置文件
+  python3 kitten_ai_bridge.py -w 123456 -c ./ai-bridge/config_123456.py  # 使用配置文件
 """
 
 import requests
@@ -38,6 +38,9 @@ DEFAULT_CONFIG = {
 
 # 运行时配置（从配置文件或命令行参数加载）
 CONFIG = DEFAULT_CONFIG.copy()
+
+# 当前作品ID
+WORK_ID = None
 
 # 记录上次处理的值，避免重复处理
 last_processed_value = None
@@ -108,17 +111,17 @@ def load_system_prompt() -> str:
         except Exception as e:
             print(f"读取提示词文件失败: {e}")
     
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    default_prompt_path = os.path.join(script_dir, "ai-bridge", "system_prompt.txt")
-    
-    if os.path.exists(default_prompt_path):
-        try:
-            with open(default_prompt_path, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                if content:
-                    return content
-        except Exception as e:
-            print(f"读取默认提示词文件失败: {e}")
+    if WORK_ID:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        work_prompt_path = os.path.join(script_dir, "ai-bridge", f"system_prompt_{WORK_ID}.txt")
+        if os.path.exists(work_prompt_path):
+            try:
+                with open(work_prompt_path, 'r', encoding='utf-8') as f:
+                    content = f.read().strip()
+                    if content:
+                        return content
+            except Exception as e:
+                print(f"读取作品提示词文件失败: {e}")
     
     return DEFAULT_SYSTEM_PROMPT
 
@@ -191,12 +194,16 @@ def ensure_log_dir():
 def get_log_file_path():
     """获取当日日志文件路径"""
     date_str = datetime.now().strftime("%Y-%m-%d")
+    if WORK_ID:
+        return os.path.join(CONFIG["log_dir"], f"ai_bridge_{WORK_ID}_{date_str}.log")
     return os.path.join(CONFIG["log_dir"], f"ai_bridge_{date_str}.log")
 
 
 def get_stats_file_path():
     """获取统计文件路径"""
     date_str = datetime.now().strftime("%Y-%m-%d")
+    if WORK_ID:
+        return os.path.join(CONFIG["log_dir"], f"stats_{WORK_ID}_{date_str}.json")
     return os.path.join(CONFIG["log_dir"], f"stats_{date_str}.json")
 
 
@@ -637,7 +644,7 @@ def validate_config() -> bool:
 
 def main():
     """主函数"""
-    global last_processed_value, CONFIG
+    global last_processed_value, CONFIG, WORK_ID
     
     parser = argparse.ArgumentParser(
         description='Kitten Cloud API - AI 桥接程序',
@@ -646,7 +653,7 @@ def main():
 示例:
   %(prog)s -w 123456                                    # 使用默认配置
   %(prog)s -w 123456 -u http://localhost:9178/api       # 指定API地址
-  %(prog)s -c ./ai-bridge/config.py                     # 使用配置文件
+  %(prog)s -w 123456 -c ./ai-bridge/config_123456.py    # 使用配置文件
   %(prog)s -w 123456 --ai-url https://api.xxx.com/v1/chat/completions --ai-key sk-xxx --ai-model gpt-4
         """
     )
@@ -654,7 +661,7 @@ def main():
     # 基本参数
     parser.add_argument('-w', '--work-id', type=int, help='作品ID（必填）')
     parser.add_argument('-u', '--api-url', type=str, help='API服务地址（如: http://localhost:9178/api）')
-    parser.add_argument('-c', '--config', type=str, help='配置文件路径（如: ./ai-bridge/config.py）')
+    parser.add_argument('-c', '--config', type=str, help='配置文件路径（如: ./ai-bridge/config_123456.py）')
     
     # AI API 参数
     parser.add_argument('--ai-url', type=str, help='AI API地址（如: https://api.openai.com/v1/chat/completions）')
@@ -732,6 +739,8 @@ def main():
         log("ERROR", "作品ID必须是正整数")
         sys.exit(1)
     
+    WORK_ID = work_id
+    
     # 5. 交互模式获取其他缺失配置
     if not args.daemon and sys.stdin.isatty():
         if not CONFIG.get("api_base_url"):
@@ -762,7 +771,7 @@ def main():
         print()
         print("使用方法:")
         print("  方式1: 使用配置文件")
-        print("    python3 kitten_ai_bridge.py -w 123456 -c ./ai-bridge/config.py")
+        print("    python3 kitten_ai_bridge.py -w 123456 -c ./ai-bridge/config_123456.py")
         print()
         print("  方式2: 使用命令行参数")
         print("    python3 kitten_ai_bridge.py -w 123456 -u http://localhost:9178/api \\")

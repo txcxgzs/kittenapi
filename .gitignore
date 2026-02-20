@@ -54,6 +54,7 @@ ENV/
 ai-bridge/config.py
 ai-bridge/config_*.py
 ai-bridge/ecosystem.config.js
+ai-bridge/ecosystem_*.config.js
 ai-bridge/*.json
 ai-bridge/system_prompt*.txt
 ai-bridge/logs/

@@ -347,7 +347,7 @@ LOG_RETENTION_DAYS=你设置的天数
 
 ### AI 桥接配置
 
-部署时会自动创建 `ai-bridge/config.py`，配置内容根据你部署时的输入生成：
+部署时会自动创建 `ai-bridge/config_{作品ID}.py`，配置内容根据你部署时的输入生成：
 
 ```python
 CONFIG = {
@@ -375,7 +375,7 @@ CONFIG = {
 | `variable_name` | 用于接收问题的云变量名 | - |
 | `question_prefix` | 问题前缀（用于识别问题） | `问:` |
 | `answer_prefix` | 答案前缀（用于识别答案） | `答:` |
-| `system_prompt_file` | 系统提示词文件路径 | `prompts/system_prompt.txt` |
+| `system_prompt_file` | 系统提示词文件路径 | `ai-bridge/system_prompt_{作品ID}.txt` |
 | `request_timeout` | AI API 请求超时时间（秒） | `60` |
 | `max_retries` | 请求失败时的最大重试次数 | `3` |
 

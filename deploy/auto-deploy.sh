@@ -640,12 +640,13 @@ configure_ai_bridge() {
     local config_dir="$PROJECT_DIR/ai-bridge"
     mkdir -p "$config_dir"
     
-    # 创建 Python 配置文件
-    cat > "$config_dir/config.py" << EOF
+    # 创建 Python 配置文件 (使用作品ID作为后缀)
+    cat > "$config_dir/config_$AI_WORK_ID.py" << EOF
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 AI 桥接程序配置文件
+作品ID: $AI_WORK_ID
 生成时间: $(date '+%Y-%m-%d %H:%M:%S')
 """
 
@@ -657,20 +658,33 @@ CONFIG = {
     "question_prefix": "$AI_QUESTION_PREFIX",
     "answer_prefix": "$AI_ANSWER_PREFIX",
     "variable_name": "$AI_VAR_NAME",
+    "system_prompt_file": "$config_dir/system_prompt_$AI_WORK_ID.txt",
     "request_timeout": 60,
     "max_retries": 5,
     "log_dir": "$config_dir/logs"
 }
 EOF
     
-    # 创建 PM2 配置文件
-    cat > "$config_dir/ecosystem.config.js" << EOF
+    # 创建默认提示词文件
+    cat > "$config_dir/system_prompt_$AI_WORK_ID.txt" << EOF
+你是 Kitten Cloud API 的 AI 助手。
+
+请用简洁、友好的方式回答用户的问题。
+
+注意事项：
+1. 回答要简洁明了
+2. 使用中文回复
+3. 如果不确定答案，请诚实告知
+EOF
+    
+    # 创建 PM2 配置文件 (每个作品独立)
+    cat > "$config_dir/ecosystem_$AI_WORK_ID.config.js" << EOF
 module.exports = {
   apps: [{
-    name: 'kitten-ai-bridge',
+    name: 'ai-bridge-$AI_WORK_ID',
     script: '$PROJECT_DIR/kitten_ai_bridge.py',
     interpreter: 'python3',
-    args: '-w $AI_WORK_ID -c $config_dir/config.py',
+    args: '-w $AI_WORK_ID -c $config_dir/config_$AI_WORK_ID.py',
     cwd: '$PROJECT_DIR',
     autorestart: true,
     restart_delay: 3000,
@@ -680,8 +694,8 @@ module.exports = {
     env: {
       NODE_ENV: 'production'
     },
-    error_file: '$config_dir/logs/error.log',
-    out_file: '$config_dir/logs/out.log'
+    error_file: '$config_dir/logs/error_$AI_WORK_ID.log',
+    out_file: '$config_dir/logs/out_$AI_WORK_ID.log'
   }]
 }
 EOF
@@ -690,7 +704,7 @@ EOF
     mkdir -p "$config_dir/logs"
     
     # 设置配置文件权限（包含敏感信息）
-    chmod 600 "$config_dir/config.py"
+    chmod 600 "$config_dir/config_$AI_WORK_ID.py"
     
     log "OK" "AI 桥接配置完成"
     echo ""
@@ -702,7 +716,7 @@ EOF
     echo -e "  云变量:     ${YELLOW}$AI_VAR_NAME${NC}"
     echo -e "  问题前缀:   ${YELLOW}$AI_QUESTION_PREFIX${NC}"
     echo -e "  答案前缀:   ${YELLOW}$AI_ANSWER_PREFIX${NC}"
-    echo -e "  配置文件:   ${YELLOW}$config_dir/config.py${NC}"
+    echo -e "  配置文件:   ${YELLOW}$config_dir/config_$AI_WORK_ID.py${NC}"
 }
 
 configure_nginx() {
@@ -894,7 +908,7 @@ start_services() {
     
     # 停止旧服务
     pm2 delete kitten-cloud-api 2>/dev/null
-    pm2 delete kitten-ai-bridge 2>/dev/null
+    pm2 delete ai-bridge-.* 2>/dev/null || true
     
     # 启动后端
     cd "$PROJECT_DIR/server"
@@ -916,14 +930,14 @@ start_services() {
     # 启动 AI 桥接
     if [ "$AI_BRIDGE_ENABLED" = true ]; then
         log "INFO" "启动 AI 桥接服务..."
-        pm2 start "$PROJECT_DIR/ai-bridge/ecosystem.config.js"
+        pm2 start "$PROJECT_DIR/ai-bridge/ecosystem_$AI_WORK_ID.config.js"
         sleep 2
         
-        if pm2 list | grep -q "kitten-ai-bridge.*online"; then
-            log "OK" "AI 桥接服务启动成功"
+        if pm2 list | grep -q "ai-bridge-$AI_WORK_ID.*online"; then
+            log "OK" "AI 桥接服务启动成功 (作品: $AI_WORK_ID)"
         else
             log "WARN" "AI 桥接服务启动失败，请检查配置"
-            pm2 logs kitten-ai-bridge --lines 10
+            pm2 logs "ai-bridge-$AI_WORK_ID" --lines 10
         fi
     fi
     
@@ -1072,8 +1086,8 @@ test_connectivity() {
     if [ "$AI_BRIDGE_ENABLED" = true ]; then
         echo ""
         log "INFO" "6. 测试 AI 桥接服务..."
-        if pm2 list | grep -q "kitten-ai-bridge.*online"; then
-            log "OK" "AI 桥接服务运行正常"
+        if pm2 list | grep -q "ai-bridge-$AI_WORK_ID.*online"; then
+            log "OK" "AI 桥接服务运行正常 (作品: $AI_WORK_ID)"
         else
             log "WARN" "AI 桥接服务未运行"
         fi
@@ -1160,7 +1174,7 @@ print_completion() {
     echo -e "  停止服务: ${YELLOW}pm2 stop kitten-cloud-api${NC}"
     
     if [ "$AI_BRIDGE_ENABLED" = true ]; then
-        echo -e "  AI日志:   ${YELLOW}pm2 logs kitten-ai-bridge${NC}"
+        echo -e "  AI日志:   ${YELLOW}pm2 logs ai-bridge-$AI_WORK_ID${NC}"
         echo -e "  AI管理:   ${YELLOW}ktai${NC} (快捷命令)"
     fi
     echo ""
@@ -1176,7 +1190,7 @@ print_completion() {
     fi
     
     if [ "$AI_BRIDGE_ENABLED" = true ]; then
-        echo -e "  AI配置:   ${YELLOW}$PROJECT_DIR/ai-bridge/config.py${NC}"
+        echo -e "  AI配置:   ${YELLOW}$PROJECT_DIR/ai-bridge/config_$AI_WORK_ID.py${NC}"
     fi
     echo ""
     
@@ -1284,7 +1298,7 @@ case "${1:-}" in
     --uninstall)
         echo "正在卸载..."
         pm2 delete kitten-cloud-api 2>/dev/null
-        pm2 delete kitten-ai-bridge 2>/dev/null
+        pm2 delete ai-bridge-.* 2>/dev/null || true
         pm2 save
         echo "卸载完成"
         ;;

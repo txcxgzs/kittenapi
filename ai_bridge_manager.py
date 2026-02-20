@@ -59,7 +59,6 @@ PM2_AVAILABLE = setup_pm2_path()
 SCRIPT_DIR = Path(__file__).parent.resolve()
 CONFIG_DIR = SCRIPT_DIR / "ai-bridge"
 LOGS_DIR = CONFIG_DIR / "logs"
-PROMPT_FILE = CONFIG_DIR / "system_prompt.txt"
 
 RED = '\033[0;31m'
 GREEN = '\033[0;32m'
@@ -166,39 +165,43 @@ def get_all_ai_bridges() -> list:
         bridges = []
         for proc in processes:
             name = proc.get('name', '')
-            if name.startswith('ai-bridge-') or name == 'kitten-ai-bridge':
-                work_id = name.replace('ai-bridge-', '').replace('kitten-ai-bridge', 'default')
-                bridges.append({
-                    'name': name,
-                    'work_id': work_id if work_id else 'default',
-                    'status': proc.get('pm2_env', {}).get('status'),
-                    'pid': proc.get('pid'),
-                    'uptime': proc.get('pm2_env', {}).get('pm_uptime'),
-                    'restarts': proc.get('pm2_env', {}).get('restart_time'),
-                    'cpu': proc.get('monit', {}).get('cpu'),
-                    'memory': proc.get('monit', {}).get('memory'),
-                    'online': proc.get('pm2_env', {}).get('status') == 'online'
-                })
-        return bridges
+            if name.startswith('ai-bridge-'):
+                work_id = name.replace('ai-bridge-', '')
+                if work_id.isdigit():
+                    bridges.append({
+                        'name': name,
+                        'work_id': int(work_id),
+                        'status': proc.get('pm2_env', {}).get('status'),
+                        'pid': proc.get('pid'),
+                        'uptime': proc.get('pm2_env', {}).get('pm_uptime'),
+                        'restarts': proc.get('pm2_env', {}).get('restart_time'),
+                        'cpu': proc.get('monit', {}).get('cpu'),
+                        'memory': proc.get('monit', {}).get('memory'),
+                        'online': proc.get('pm2_env', {}).get('status') == 'online'
+                    })
+        return sorted(bridges, key=lambda x: x['work_id'])
     except Exception:
         return []
 
 
-def get_config_path(work_id: str) -> Path:
+def get_config_path(work_id) -> Path:
     """获取指定作品的配置文件路径"""
+    work_id = str(work_id)
     if work_id == 'default':
         return CONFIG_DIR / "config.py"
     return CONFIG_DIR / f"config_{work_id}.py"
 
 
-def get_prompt_path(work_id: str) -> Path:
+def get_prompt_path(work_id) -> Path:
     """获取指定作品的提示词文件路径"""
+    work_id = str(work_id)
     if work_id == 'default':
         return CONFIG_DIR / "system_prompt.txt"
     return CONFIG_DIR / f"system_prompt_{work_id}.txt"
 
 
-def load_config(work_id: str = 'default') -> dict:
+def load_config(work_id = 'default') -> dict:
+    work_id = str(work_id)
     config_file = get_config_path(work_id)
     
     if not config_file.exists():
@@ -240,7 +243,8 @@ def escape_string(s: str) -> str:
     return s.replace('\\', '\\\\').replace('"', '\\"').replace("'", "\\'")
 
 
-def save_config(config: dict, work_id: str = 'default'):
+def save_config(config: dict, work_id = 'default'):
+    work_id = str(work_id)
     config_file = get_config_path(work_id)
     config_file.parent.mkdir(parents=True, exist_ok=True)
     
@@ -275,7 +279,8 @@ CONFIG = {{
     log("SUCCESS", f"配置已保存 (作品: {work_id})")
 
 
-def load_prompt(work_id: str = 'default') -> str:
+def load_prompt(work_id = 'default') -> str:
+    work_id = str(work_id)
     prompt_file = get_prompt_path(work_id)
     
     if prompt_file.exists():
@@ -287,7 +292,8 @@ def load_prompt(work_id: str = 'default') -> str:
     return DEFAULT_PROMPT
 
 
-def save_prompt(prompt: str, work_id: str = 'default'):
+def save_prompt(prompt: str, work_id = 'default'):
+    work_id = str(work_id)
     prompt_file = get_prompt_path(work_id)
     prompt_file.parent.mkdir(parents=True, exist_ok=True)
     
@@ -330,13 +336,13 @@ def show_all_status():
     print()
 
 
-def show_instance_status(work_id: str):
+def show_instance_status(work_id):
     """显示指定实例详细状态"""
     bridges = get_all_ai_bridges()
     bridge = None
     
     for b in bridges:
-        if b['work_id'] == work_id or b['name'] == work_id:
+        if str(b['work_id']) == str(work_id) or b['name'] == work_id or b['name'] == f"ai-bridge-{work_id}":
             bridge = b
             break
     
@@ -398,7 +404,7 @@ def add_work():
     
     bridges = get_all_ai_bridges()
     for b in bridges:
-        if b['work_id'] == work_id:
+        if str(b['work_id']) == str(work_id):
             log("WARN", f"作品 {work_id} 已存在")
             return
     
@@ -455,8 +461,9 @@ def add_work():
     
     script_path = str(SCRIPT_DIR / "kitten_ai_bridge.py").replace('\\', '/')
     config_path_str = str(config_file).replace('\\', '/')
+    logs_dir_str = str(LOGS_DIR).replace('\\', '/')
     
-    cmd = f'pm2 start {script_path} --name "{instance_name}" --interpreter python3 -- -w {work_id} -c {config_path_str}'
+    cmd = f'pm2 start {script_path} --name "{instance_name}" --interpreter python3 --error "{logs_dir_str}/error_{work_id}.log" --output "{logs_dir_str}/out_{work_id}.log" -- -w {work_id} -c {config_path_str}'
     
     returncode, output = run_command(cmd)
     
@@ -482,7 +489,7 @@ def remove_work(work_id: str = None):
     
     actual_name = None
     for b in bridges:
-        if b['work_id'] == work_id or b['name'] == work_id:
+        if str(b['work_id']) == str(work_id) or b['name'] == work_id or b['name'] == f"ai-bridge-{work_id}":
             actual_name = b['name']
             break
     
@@ -522,7 +529,7 @@ def show_logs(work_id: str = None, lines: int = 50):
     if work_id:
         actual_name = None
         for b in bridges:
-            if b['work_id'] == work_id or b['name'] == work_id:
+            if str(b['work_id']) == str(work_id) or b['name'] == work_id or b['name'] == f"ai-bridge-{work_id}":
                 actual_name = b['name']
                 break
         if not actual_name:
@@ -533,7 +540,7 @@ def show_logs(work_id: str = None, lines: int = 50):
         if work_id:
             actual_name = None
             for b in bridges:
-                if b['work_id'] == work_id or b['name'] == work_id:
+                if str(b['work_id']) == str(work_id) or b['name'] == work_id or b['name'] == f"ai-bridge-{work_id}":
                     actual_name = b['name']
                     break
             if not actual_name:
@@ -587,7 +594,7 @@ def restart_instance(work_id: str = None):
     actual_name = None
     bridge_info = None
     for b in bridges:
-        if b['work_id'] == work_id or b['name'] == work_id:
+        if str(b['work_id']) == str(work_id) or b['name'] == work_id or b['name'] == f"ai-bridge-{work_id}":
             actual_name = b['name']
             bridge_info = b
             break
@@ -604,7 +611,8 @@ def restart_instance(work_id: str = None):
         if config_file.exists():
             script_path = str(SCRIPT_DIR / "kitten_ai_bridge.py").replace('\\', '/')
             config_path_str = str(config_file).replace('\\', '/')
-            cmd = f'pm2 start {script_path} --name "{actual_name}" --interpreter python3 -- -w {work_id} -c {config_path_str}'
+            logs_dir_str = str(LOGS_DIR).replace('\\', '/')
+            cmd = f'pm2 start {script_path} --name "{actual_name}" --interpreter python3 --error "{logs_dir_str}/error_{work_id}.log" --output "{logs_dir_str}/out_{work_id}.log" -- -w {work_id} -c {config_path_str}'
             returncode, output = run_command(cmd)
             if returncode == 0:
                 run_command("pm2 save")
@@ -641,7 +649,7 @@ def stop_instance(work_id: str = None):
     
     actual_name = None
     for b in bridges:
-        if b['work_id'] == work_id or b['name'] == work_id:
+        if str(b['work_id']) == str(work_id) or b['name'] == work_id or b['name'] == f"ai-bridge-{work_id}":
             actual_name = b['name']
             break
     
