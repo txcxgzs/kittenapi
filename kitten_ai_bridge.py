@@ -42,9 +42,6 @@ CONFIG = DEFAULT_CONFIG.copy()
 # 当前作品ID
 WORK_ID = None
 
-# 记录上次处理的值，避免重复处理
-last_processed_value = None
-
 # 统计数据
 stats = {
     "start_time": None,
@@ -370,6 +367,22 @@ def print_config():
     log("INFO", "=" * 50)
 
 
+def normalize_api_url(url: str) -> str:
+    """
+    规范化 API URL，确保以 /api 结尾
+    
+    Args:
+        url: 原始 URL
+        
+    Returns:
+        规范化后的 URL
+    """
+    url = url.rstrip('/')
+    if not url.endswith('/api'):
+        url = url + '/api'
+    return url
+
+
 def connect_to_work(api_base_url: str, work_id: int) -> dict:
     """
     连接到编程猫作品
@@ -381,6 +394,7 @@ def connect_to_work(api_base_url: str, work_id: int) -> dict:
     Returns:
         连接信息字典
     """
+    api_base_url = normalize_api_url(api_base_url)
     url = f"{api_base_url}/connection/connect"
     payload = {"workId": work_id}
     
@@ -420,6 +434,7 @@ def get_variable(api_base_url: str, work_id: int, var_name: str) -> dict:
     Returns:
         包含变量值的字典
     """
+    api_base_url = normalize_api_url(api_base_url)
     url = f"{api_base_url}/var/get"
     payload = {"workId": work_id, "name": var_name}
     
@@ -475,6 +490,7 @@ def set_variable(api_base_url: str, work_id: int, var_name: str, value: str, var
     Returns:
         操作结果字典
     """
+    api_base_url = normalize_api_url(api_base_url)
     url = f"{api_base_url}/var/set"
     payload = {
         "workId": work_id,
@@ -602,19 +618,14 @@ def parse_question(value: str) -> tuple:
         value: 云变量的值
         
     Returns:
-        (是否为新问题, 问题内容)
+        (是否为问题, 问题内容)
     """
-    global last_processed_value
-    
     prefix = CONFIG["question_prefix"]
     
     if not value or not isinstance(value, str):
         return False, None
     
     if not value.startswith(prefix):
-        return False, None
-    
-    if value == last_processed_value:
         return False, None
     
     question = value[len(prefix):].strip()
@@ -644,7 +655,7 @@ def validate_config() -> bool:
 
 def main():
     """主函数"""
-    global last_processed_value, CONFIG, WORK_ID
+    global CONFIG, WORK_ID
     
     parser = argparse.ArgumentParser(
         description='Kitten Cloud API - AI 桥接程序',
@@ -905,7 +916,6 @@ def main():
             
             if set_result["success"]:
                 log("SUCCESS", "变量设置成功")
-                last_processed_value = current_value
             else:
                 log("ERROR", f"变量设置失败: {set_result.get('message', '未知错误')}")
                 stats["total_errors"] += 1
