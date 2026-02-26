@@ -829,14 +829,30 @@ install_project() {
         log "INFO" "构建本地依赖 Kitten-Cloud-Function..."
         cd "$PROJECT_DIR/Kitten-Cloud-Function"
         
+        # 检查是否需要重新安装
+        if [ -d "node_modules" ]; then
+            if ask_yes_no "Kitten-Cloud-Function 已有依赖，是否重新安装?"; then
+                rm -rf node_modules dist
+            fi
+        fi
+        
         if [ ! -d "node_modules" ]; then
+            log "INFO" "安装 Kitten-Cloud-Function 依赖..."
             npm install --registry=https://registry.npmmirror.com
         fi
         
+        # 始终检查 dist 是否存在
         if [ ! -d "dist" ]; then
             log "INFO" "编译 Kitten-Cloud-Function..."
             npm run build:package
             log "OK" "Kitten-Cloud-Function 构建完成"
+        else
+            if ask_yes_no "Kitten-Cloud-Function 已构建，是否重新构建?"; then
+                rm -rf dist
+                log "INFO" "重新编译 Kitten-Cloud-Function..."
+                npm run build:package
+                log "OK" "Kitten-Cloud-Function 构建完成"
+            fi
         fi
     fi
     
