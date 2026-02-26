@@ -854,7 +854,7 @@ install_project() {
     if [ ! -d "node_modules" ]; then
         npm config set registry https://registry.npmmirror.com
         log "INFO" "正在安装依赖，请稍候..."
-        if npm install; then
+        if npm install --registry=https://registry.npmmirror.com; then
             log "OK" "后端依赖安装完成"
         else
             log "ERROR" "后端依赖安装失败"
@@ -1117,10 +1117,7 @@ print_completion() {
         server_ip=$(curl -s --connect-timeout 3 "http://ip.3322.net" 2>/dev/null)
     fi
     if [ -z "$server_ip" ]; then
-        server_ip=$(curl -s --connect-timeout 3 "https://api.ipify.org" 2>/dev/null)
-    fi
-    if [ -z "$server_ip" ]; then
-        server_ip=$(curl -s --connect-timeout 3 "https://ifconfig.me" 2>/dev/null)
+        server_ip=$(curl -s --connect-timeout 3 "https://ip.cn/api/index?ip=&type=0" 2>/dev/null | grep -oE '[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+' | head -1)
     fi
     if [ -z "$server_ip" ]; then
         server_ip=$(hostname -I 2>/dev/null | awk '{print $1}')

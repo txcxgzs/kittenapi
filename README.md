@@ -9,8 +9,10 @@
 ## 🚀 快速开始（一条命令部署）
 
 ```bash
-# 克隆项目
-git clone https://github.com/txcxgzs/kittenapi.git
+# 克隆项目（国内服务器推荐使用 Gitee 镜像）
+git clone https://gitee.com/txcxgzs/kittenapi.git
+# 或 GitHub
+# git clone https://github.com/txcxgzs/kittenapi.git
 cd kittenapi
 
 # 一键部署（完全交互式，会引导你完成所有配置）
@@ -19,7 +21,7 @@ bash deploy/auto-deploy.sh
 
 就这么简单！脚本会自动：
 - ✅ 安装 Node.js、PM2、Python
-- ✅ 安装项目依赖
+- ✅ 安装项目依赖（使用国内镜像）
 - ✅ 构建前后端
 - ✅ 引导你配置所有参数
 - ✅ 启动服务
@@ -202,8 +204,10 @@ kittenapi/
 ### 方式一：一键部署（推荐）
 
 ```bash
-# 1. 克隆项目
-git clone https://github.com/txcxgzs/kittenapi.git
+# 1. 克隆项目（国内服务器推荐使用 Gitee 镜像）
+git clone https://gitee.com/txcxgzs/kittenapi.git
+# 或 GitHub
+# git clone https://github.com/txcxgzs/kittenapi.git
 cd kittenapi
 
 # 2. 运行部署脚本
@@ -222,9 +226,9 @@ bash deploy/auto-deploy.sh
 ### 方式二：手动部署
 
 ```bash
-# 1. 安装依赖并构建
-cd server && npm install && npm run build
-cd ../web && npm install && npm run build
+# 1. 安装依赖并构建（国内服务器使用镜像）
+cd server && npm install --registry=https://registry.npmmirror.com && npm run build
+cd ../web && npm install --registry=https://registry.npmmirror.com && npm run build
 
 # 2. 配置环境变量
 cp server/.env.example server/.env
